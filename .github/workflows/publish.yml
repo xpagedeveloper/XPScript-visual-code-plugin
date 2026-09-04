@@ -26,6 +26,13 @@ jobs:
           repository: xpagedeveloper/XPscript
           path: xpscript-source
 
+      - name: Checkout XPscript Astro Docs
+        uses: actions/checkout@v4
+        with:
+          repository: xpagedeveloper/XPscript
+          ref: docs/astro-foundation
+          path: xpscript-astro-docs
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -37,6 +44,7 @@ jobs:
       - name: Compile and package
         env:
           XPSCRIPT_REPO_PATH: ${{ github.workspace }}/xpscript-source
+          XPSCRIPT_ASTRO_DOCS_PATH: ${{ github.workspace }}/xpscript-astro-docs
         run: npm run package
 
       - name: Upload publish folder
