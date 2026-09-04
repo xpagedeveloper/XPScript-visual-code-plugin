@@ -28,24 +28,24 @@ const rest = fs.readdirSync(docsDir).filter(f => f.endsWith('.md') && !preferred
 const files = [...preferred.filter(f => fs.existsSync(path.join(docsDir, f))), ...rest];
 
 const sectionOwners = new Map([
-  ['Native HTTP client', 'HttpClient'], ['HTTP response', 'HttpResponse'], ['SQLite', 'XPDBSQLite'],
-  ['SQL Server', 'XPDbMsSql'], ['Supabase HTTP database', 'HTTPDBSupabase'], ['Domino REST database', 'HTTPDBDominoRest'],
+  ['Native HTTP client', 'XPHttpClient'], ['HTTP response', 'XPHttpResponse'], ['SQLite', 'XPDBSQLite'],
+  ['SQL Server', 'XPDbMsSql'], ['Supabase HTTP database', 'XPHttpDbSupabase'], ['Domino REST database', 'XPHttpDbDominoRest'],
   ['XPAi', 'XPAi'], ['AITool', 'AITool'], ['UIForm', 'UIForm'], ['UIListView', 'UIListView'],
   ['Response', 'Response'], ['Session', 'Session'], ['RequestScope', 'RequestScope']
 ]);
 
 const knownReturnTypes = {
-  'HttpClient.Get': 'HttpResponse', 'HttpClient.Post': 'HttpResponse', 'HttpClient.Put': 'HttpResponse',
-  'HttpClient.Patch': 'HttpResponse', 'HttpClient.Delete': 'HttpResponse', 'HttpClient.GetJson': 'JsonDocument',
-  'HttpResponse.Json': 'JsonDocument', 'JsonDocument.Parse': 'JsonDocument', 'JsonParse': 'JsonDocument',
-  'JsonDecode': 'JsonDocument', 'XPDBSQLite.Query': 'JsonDocument', 'XPDbMsSql.Query': 'JsonDocument',
-  'UIListView.GetSelectedRow': 'JsonObject', 'FileInfo': 'FileInfo', 'Application.State': 'State',
-  'Process.State': 'State', 'Session.State': 'State', 'Request.State': 'State'
+  'XPHttpClient.Get': 'XPHttpResponse', 'XPHttpClient.Post': 'XPHttpResponse', 'XPHttpClient.Put': 'XPHttpResponse',
+  'XPHttpClient.Patch': 'XPHttpResponse', 'XPHttpClient.Delete': 'XPHttpResponse', 'XPHttpClient.GetJson': 'XPJsonDocument',
+  'XPHttpResponse.Json': 'XPJsonDocument', 'XPJsonDocument.Parse': 'XPJsonDocument', 'JsonParse': 'XPJsonDocument',
+  'JsonDecode': 'XPJsonDocument', 'XPDBSQLite.Query': 'XPJsonDocument', 'XPDbMsSql.Query': 'XPJsonDocument',
+  'XPDbMySql.Query': 'XPJsonDocument', 'UIListView.GetSelectedRow': 'XPJsonObject', 'FileInfo': 'FileInfo',
+  'Application.State': 'State', 'Process.State': 'State', 'Session.State': 'State', 'Request.State': 'State'
 };
 const writable = new Set([
   'Application.ExitCode','Application.Title','Application.Icon','Application.Width','Application.Height',
-  'HttpClient.Timeout','XPDBSQLite.Timeout','XPDBSQLite.MaxRows','XPDbMsSql.Timeout','XPDbMsSql.MaxRows',
-  'Response.StatusCode','Response.ContentType'
+  'XPHttpClient.Timeout','XPDBSQLite.Timeout','XPDBSQLite.MaxRows','XPDbMsSql.Timeout','XPDbMsSql.MaxRows',
+  'XPDbMySql.Timeout','XPDbMySql.MaxRows','Response.StatusCode','Response.ContentType'
 ]);
 
 const items = new Map();
@@ -114,47 +114,52 @@ for (const name of ['Name','FullPath','Extension','Length','Created','Modified',
   addItem({ name, qualifiedName: `FileInfo.${name}`, owner: 'FileInfo', kind: 'property', syntax: `fileInfo.${name}`, parameters: '', description: `FileInfo ${name} property.`, source: 'docs/file-io-reference.md', section: 'FileInfo' });
 }
 
-// docs/native-csv.md documents its public API as prose and bullet lists rather than
-// the Member|Syntax table format used by the main references. Keep this explicit list
-// tied to that document so the extension exposes only the public CSV surface.
+// docs/native-csv.md documents much of its public API as prose and bullet lists.
+// Keep the explicit additions tied to that document and use only the current XP-prefixed object names.
 const csvSource = 'docs/native-csv.md';
 const csvSection = 'Native CSV';
 const csvItems = [
-  { name: 'CsvDocument', qualifiedName: 'CsvDocument', kind: 'class', syntax: 'Dim doc As New CsvDocument', parameters: '', description: 'Creates an empty CSV document.', source: csvSource, section: csvSection },
-  { name: 'CsvParse', qualifiedName: 'CsvParse', kind: 'function', syntax: 'CsvParse(text [, delimiter [, hasHeaders]])', parameters: 'text; delimiter; hasHeaders', description: 'Parses CSV text.', returnType: 'CsvDocument', source: csvSource, section: csvSection },
-  { name: 'CsvParseBytes', qualifiedName: 'CsvParseBytes', kind: 'function', syntax: 'CsvParseBytes(bytes, encoding [, delimiter [, hasHeaders]])', parameters: 'bytes; encoding; delimiter; hasHeaders', description: 'Parses CSV byte data using an explicit encoding.', returnType: 'CsvDocument', source: csvSource, section: csvSection },
-  { name: 'CsvStringify', qualifiedName: 'CsvStringify', kind: 'function', syntax: 'CsvStringify(document)', parameters: 'document', description: 'Serializes a CsvDocument to CSV text.', source: csvSource, section: csvSection },
+  { name: 'XPCsvDocument', qualifiedName: 'XPCsvDocument', kind: 'class', syntax: 'Dim doc As New XPCsvDocument', parameters: '', description: 'Creates an empty CSV document.', source: csvSource, section: csvSection },
+  { name: 'CsvParse', qualifiedName: 'CsvParse', kind: 'function', syntax: 'CsvParse(text [, delimiter [, hasHeaders]])', parameters: 'text; delimiter; hasHeaders', description: 'Parses CSV text.', returnType: 'XPCsvDocument', source: csvSource, section: csvSection },
+  { name: 'CsvParseBytes', qualifiedName: 'CsvParseBytes', kind: 'function', syntax: 'CsvParseBytes(bytes, encoding [, delimiter [, hasHeaders]])', parameters: 'bytes; encoding; delimiter; hasHeaders', description: 'Parses CSV byte data using an explicit encoding.', returnType: 'XPCsvDocument', source: csvSource, section: csvSection },
+  { name: 'CsvStringify', qualifiedName: 'CsvStringify', kind: 'function', syntax: 'CsvStringify(document)', parameters: 'document', description: 'Serializes an XPCsvDocument to CSV text.', source: csvSource, section: csvSection },
   { name: 'CsvEscape', qualifiedName: 'CsvEscape', kind: 'function', syntax: 'CsvEscape(value [, delimiter])', parameters: 'value; delimiter', description: 'Escapes one CSV field value.', source: csvSource, section: csvSection },
+  { name: 'CsvSave', qualifiedName: 'CsvSave', kind: 'function', syntax: 'CsvSave(document, path [, encoding])', parameters: 'document; path; encoding', description: 'Writes an XPCsvDocument to a file.', source: csvSource, section: csvSection },
+  { name: 'CsvWriteFile', qualifiedName: 'CsvWriteFile', kind: 'function', syntax: 'CsvWriteFile(document, path [, encoding])', parameters: 'document; path; encoding', description: 'Writes an XPCsvDocument to a file.', source: csvSource, section: csvSection },
 
-  { name: 'Parse', qualifiedName: 'CsvDocument.Parse', owner: 'CsvDocument', kind: 'function', syntax: 'CsvDocument.Parse(text [, delimiter [, hasHeaders]])', parameters: 'text; delimiter; hasHeaders', description: 'Parses CSV text.', returnType: 'CsvDocument', source: csvSource, section: csvSection },
-  { name: 'ParseBytes', qualifiedName: 'CsvDocument.ParseBytes', owner: 'CsvDocument', kind: 'function', syntax: 'CsvDocument.ParseBytes(bytes, encoding [, delimiter [, hasHeaders]])', parameters: 'bytes; encoding; delimiter; hasHeaders', description: 'Parses CSV bytes using an explicit encoding.', returnType: 'CsvDocument', source: csvSource, section: csvSection },
-  { name: 'Headers', qualifiedName: 'CsvDocument.Headers', owner: 'CsvDocument', kind: 'property', syntax: 'doc.Headers', parameters: '', description: 'Indexed and iterable collection of CSV headers.', returnType: 'CsvHeaderCollection', source: csvSource, section: csvSection },
-  { name: 'Rows', qualifiedName: 'CsvDocument.Rows', owner: 'CsvDocument', kind: 'property', syntax: 'doc.Rows', parameters: '', description: 'Indexed and iterable collection of CSV rows.', returnType: 'CsvRowCollection', source: csvSource, section: csvSection },
-  { name: 'RowCount', qualifiedName: 'CsvDocument.RowCount', owner: 'CsvDocument', kind: 'property', syntax: 'doc.RowCount', parameters: '', description: 'Number of data rows.', source: csvSource, section: csvSection },
-  { name: 'ColumnCount', qualifiedName: 'CsvDocument.ColumnCount', owner: 'CsvDocument', kind: 'property', syntax: 'doc.ColumnCount', parameters: '', description: 'Number of columns.', source: csvSource, section: csvSection },
-  { name: 'HasHeaders', qualifiedName: 'CsvDocument.HasHeaders', owner: 'CsvDocument', kind: 'property', syntax: 'doc.HasHeaders', parameters: '', description: 'Controls whether the document treats the first record as headers.', writable: true, source: csvSource, section: csvSection },
-  { name: 'Delimiter', qualifiedName: 'CsvDocument.Delimiter', owner: 'CsvDocument', kind: 'property', syntax: 'doc.Delimiter', parameters: '', description: 'CSV delimiter. Comma and semicolon are supported.', writable: true, source: csvSource, section: csvSection },
-  { name: 'Encoding', qualifiedName: 'CsvDocument.Encoding', owner: 'CsvDocument', kind: 'property', syntax: 'doc.Encoding', parameters: '', description: 'Encoding used when serializing the document to bytes.', writable: true, source: csvSource, section: csvSection },
-  { name: 'AddHeader', qualifiedName: 'CsvDocument.AddHeader', owner: 'CsvDocument', kind: 'function', syntax: 'doc.AddHeader(name)', parameters: 'name', description: 'Adds a header and extends existing rows with an empty value.', source: csvSource, section: csvSection },
-  { name: 'AddRow', qualifiedName: 'CsvDocument.AddRow', owner: 'CsvDocument', kind: 'function', syntax: 'doc.AddRow()', parameters: '', description: 'Adds a row to the document.', returnType: 'CsvRow', source: csvSource, section: csvSection },
-  { name: 'Stringify', qualifiedName: 'CsvDocument.Stringify', owner: 'CsvDocument', kind: 'function', syntax: 'doc.Stringify()', parameters: '', description: 'Serializes the document to CSV text.', source: csvSource, section: csvSection },
-  { name: 'ToBytes', qualifiedName: 'CsvDocument.ToBytes', owner: 'CsvDocument', kind: 'function', syntax: 'doc.ToBytes([encoding])', parameters: 'encoding', description: 'Serializes the document to bytes using the document encoding or an explicit encoding.', source: csvSource, section: csvSection },
+  { name: 'Parse', qualifiedName: 'XPCsvDocument.Parse', owner: 'XPCsvDocument', kind: 'function', syntax: 'XPCsvDocument.Parse(text [, delimiter [, hasHeaders]])', parameters: 'text; delimiter; hasHeaders', description: 'Parses CSV text.', returnType: 'XPCsvDocument', source: csvSource, section: csvSection },
+  { name: 'ParseBytes', qualifiedName: 'XPCsvDocument.ParseBytes', owner: 'XPCsvDocument', kind: 'function', syntax: 'XPCsvDocument.ParseBytes(bytes, encoding [, delimiter [, hasHeaders]])', parameters: 'bytes; encoding; delimiter; hasHeaders', description: 'Parses CSV bytes using an explicit encoding.', returnType: 'XPCsvDocument', source: csvSource, section: csvSection },
+  { name: 'Headers', qualifiedName: 'XPCsvDocument.Headers', owner: 'XPCsvDocument', kind: 'property', syntax: 'doc.Headers', parameters: '', description: 'Indexed and iterable collection of CSV headers.', returnType: 'XPCsvHeaderCollection', source: csvSource, section: csvSection },
+  { name: 'Rows', qualifiedName: 'XPCsvDocument.Rows', owner: 'XPCsvDocument', kind: 'property', syntax: 'doc.Rows', parameters: '', description: 'Indexed and iterable collection of CSV rows.', returnType: 'XPCsvRowCollection', source: csvSource, section: csvSection },
+  { name: 'RowCount', qualifiedName: 'XPCsvDocument.RowCount', owner: 'XPCsvDocument', kind: 'property', syntax: 'doc.RowCount', parameters: '', description: 'Number of data rows.', source: csvSource, section: csvSection },
+  { name: 'ColumnCount', qualifiedName: 'XPCsvDocument.ColumnCount', owner: 'XPCsvDocument', kind: 'property', syntax: 'doc.ColumnCount', parameters: '', description: 'Number of columns.', source: csvSource, section: csvSection },
+  { name: 'HasHeaders', qualifiedName: 'XPCsvDocument.HasHeaders', owner: 'XPCsvDocument', kind: 'property', syntax: 'doc.HasHeaders', parameters: '', description: 'Controls whether the document treats the first record as headers.', writable: true, source: csvSource, section: csvSection },
+  { name: 'Delimiter', qualifiedName: 'XPCsvDocument.Delimiter', owner: 'XPCsvDocument', kind: 'property', syntax: 'doc.Delimiter', parameters: '', description: 'CSV delimiter. Comma and semicolon are supported.', writable: true, source: csvSource, section: csvSection },
+  { name: 'Encoding', qualifiedName: 'XPCsvDocument.Encoding', owner: 'XPCsvDocument', kind: 'property', syntax: 'doc.Encoding', parameters: '', description: 'Encoding used when serializing the document to bytes or files.', writable: true, source: csvSource, section: csvSection },
+  { name: 'FileEncoding', qualifiedName: 'XPCsvDocument.FileEncoding', owner: 'XPCsvDocument', kind: 'property', syntax: 'doc.FileEncoding', parameters: '', description: 'Alias for Encoding when working with file output.', writable: true, source: csvSource, section: csvSection },
+  { name: 'AddHeader', qualifiedName: 'XPCsvDocument.AddHeader', owner: 'XPCsvDocument', kind: 'function', syntax: 'doc.AddHeader(name)', parameters: 'name', description: 'Adds a header and extends existing rows with an empty value.', source: csvSource, section: csvSection },
+  { name: 'AddRow', qualifiedName: 'XPCsvDocument.AddRow', owner: 'XPCsvDocument', kind: 'function', syntax: 'doc.AddRow()', parameters: '', description: 'Adds a row to the document.', returnType: 'XPCsvRow', source: csvSource, section: csvSection },
+  { name: 'Stringify', qualifiedName: 'XPCsvDocument.Stringify', owner: 'XPCsvDocument', kind: 'function', syntax: 'doc.Stringify()', parameters: '', description: 'Serializes the document to CSV text.', source: csvSource, section: csvSection },
+  { name: 'ToBytes', qualifiedName: 'XPCsvDocument.ToBytes', owner: 'XPCsvDocument', kind: 'function', syntax: 'doc.ToBytes([encoding])', parameters: 'encoding', description: 'Serializes the document to bytes using the document encoding or an explicit encoding.', source: csvSource, section: csvSection },
+  { name: 'Save', qualifiedName: 'XPCsvDocument.Save', owner: 'XPCsvDocument', kind: 'function', syntax: 'doc.Save(path [, encoding])', parameters: 'path; encoding', description: 'Writes the CSV document to a file.', source: csvSource, section: csvSection },
+  { name: 'SaveFile', qualifiedName: 'XPCsvDocument.SaveFile', owner: 'XPCsvDocument', kind: 'function', syntax: 'doc.SaveFile(path [, encoding])', parameters: 'path; encoding', description: 'Alias for Save.', source: csvSource, section: csvSection },
+  { name: 'WriteFile', qualifiedName: 'XPCsvDocument.WriteFile', owner: 'XPCsvDocument', kind: 'function', syntax: 'doc.WriteFile(path [, encoding])', parameters: 'path; encoding', description: 'Alias for Save.', source: csvSource, section: csvSection },
 
-  { name: 'Count', qualifiedName: 'CsvHeaderCollection.Count', owner: 'CsvHeaderCollection', kind: 'property', syntax: 'headers.Count', parameters: '', description: 'Number of headers.', source: csvSource, section: csvSection },
-  { name: 'Get', qualifiedName: 'CsvHeaderCollection.Get', owner: 'CsvHeaderCollection', kind: 'function', syntax: 'headers.Get(index)', parameters: 'index', description: 'Returns the header at a zero-based index.', returnType: 'String', source: csvSource, section: csvSection },
-  { name: 'Count', qualifiedName: 'CsvRowCollection.Count', owner: 'CsvRowCollection', kind: 'property', syntax: 'rows.Count', parameters: '', description: 'Number of rows.', source: csvSource, section: csvSection },
-  { name: 'Get', qualifiedName: 'CsvRowCollection.Get', owner: 'CsvRowCollection', kind: 'function', syntax: 'rows.Get(index)', parameters: 'index', description: 'Returns the row at a zero-based index.', returnType: 'CsvRow', source: csvSource, section: csvSection },
-  { name: 'Count', qualifiedName: 'CsvColumnCollection.Count', owner: 'CsvColumnCollection', kind: 'property', syntax: 'columns.Count', parameters: '', description: 'Number of columns in the row.', source: csvSource, section: csvSection },
-  { name: 'Get', qualifiedName: 'CsvColumnCollection.Get', owner: 'CsvColumnCollection', kind: 'function', syntax: 'columns.Get(index)', parameters: 'index', description: 'Returns the column at a zero-based index.', returnType: 'CsvColumn', source: csvSource, section: csvSection },
+  { name: 'Count', qualifiedName: 'XPCsvHeaderCollection.Count', owner: 'XPCsvHeaderCollection', kind: 'property', syntax: 'headers.Count', parameters: '', description: 'Number of headers.', source: csvSource, section: csvSection },
+  { name: 'Get', qualifiedName: 'XPCsvHeaderCollection.Get', owner: 'XPCsvHeaderCollection', kind: 'function', syntax: 'headers.Get(index)', parameters: 'index', description: 'Returns the header at a zero-based index.', returnType: 'String', source: csvSource, section: csvSection },
+  { name: 'Count', qualifiedName: 'XPCsvRowCollection.Count', owner: 'XPCsvRowCollection', kind: 'property', syntax: 'rows.Count', parameters: '', description: 'Number of rows.', source: csvSource, section: csvSection },
+  { name: 'Get', qualifiedName: 'XPCsvRowCollection.Get', owner: 'XPCsvRowCollection', kind: 'function', syntax: 'rows.Get(index)', parameters: 'index', description: 'Returns the row at a zero-based index.', returnType: 'XPCsvRow', source: csvSource, section: csvSection },
+  { name: 'Count', qualifiedName: 'XPCsvColumnCollection.Count', owner: 'XPCsvColumnCollection', kind: 'property', syntax: 'columns.Count', parameters: '', description: 'Number of columns in the row.', source: csvSource, section: csvSection },
+  { name: 'Get', qualifiedName: 'XPCsvColumnCollection.Get', owner: 'XPCsvColumnCollection', kind: 'function', syntax: 'columns.Get(index)', parameters: 'index', description: 'Returns the column at a zero-based index.', returnType: 'XPCsvColumn', source: csvSource, section: csvSection },
 
-  { name: 'Count', qualifiedName: 'CsvRow.Count', owner: 'CsvRow', kind: 'property', syntax: 'row.Count', parameters: '', description: 'Number of values in the row.', source: csvSource, section: csvSection },
-  { name: 'Columns', qualifiedName: 'CsvRow.Columns', owner: 'CsvRow', kind: 'property', syntax: 'row.Columns', parameters: '', description: 'Indexed and iterable collection of columns in the row.', returnType: 'CsvColumnCollection', source: csvSource, section: csvSection },
-  { name: 'Get', qualifiedName: 'CsvRow.Get', owner: 'CsvRow', kind: 'function', syntax: 'row.Get(indexOrName)', parameters: 'indexOrName', description: 'Returns a value by zero-based column index or case-insensitive header name.', returnType: 'String', source: csvSource, section: csvSection },
-  { name: 'Set', qualifiedName: 'CsvRow.Set', owner: 'CsvRow', kind: 'function', syntax: 'row.Set(indexOrName, value)', parameters: 'indexOrName; value', description: 'Sets an existing value by zero-based index or header name.', source: csvSource, section: csvSection },
+  { name: 'Count', qualifiedName: 'XPCsvRow.Count', owner: 'XPCsvRow', kind: 'property', syntax: 'row.Count', parameters: '', description: 'Number of values in the row.', source: csvSource, section: csvSection },
+  { name: 'Columns', qualifiedName: 'XPCsvRow.Columns', owner: 'XPCsvRow', kind: 'property', syntax: 'row.Columns', parameters: '', description: 'Indexed and iterable collection of columns in the row.', returnType: 'XPCsvColumnCollection', source: csvSource, section: csvSection },
+  { name: 'Get', qualifiedName: 'XPCsvRow.Get', owner: 'XPCsvRow', kind: 'function', syntax: 'row.Get(indexOrName)', parameters: 'indexOrName', description: 'Returns a value by zero-based column index or case-insensitive header name.', returnType: 'String', source: csvSource, section: csvSection },
+  { name: 'Set', qualifiedName: 'XPCsvRow.Set', owner: 'XPCsvRow', kind: 'function', syntax: 'row.Set(indexOrName, value)', parameters: 'indexOrName; value', description: 'Sets an existing value by zero-based index or header name.', source: csvSource, section: csvSection },
 
-  { name: 'Index', qualifiedName: 'CsvColumn.Index', owner: 'CsvColumn', kind: 'property', syntax: 'column.Index', parameters: '', description: 'Zero-based column index.', source: csvSource, section: csvSection },
-  { name: 'Name', qualifiedName: 'CsvColumn.Name', owner: 'CsvColumn', kind: 'property', syntax: 'column.Name', parameters: '', description: 'Column header name, or an empty string when headers are disabled.', source: csvSource, section: csvSection },
-  { name: 'Value', qualifiedName: 'CsvColumn.Value', owner: 'CsvColumn', kind: 'property', syntax: 'column.Value', parameters: '', description: 'Column text value.', source: csvSource, section: csvSection }
+  { name: 'Index', qualifiedName: 'XPCsvColumn.Index', owner: 'XPCsvColumn', kind: 'property', syntax: 'column.Index', parameters: '', description: 'Zero-based column index.', source: csvSource, section: csvSection },
+  { name: 'Name', qualifiedName: 'XPCsvColumn.Name', owner: 'XPCsvColumn', kind: 'property', syntax: 'column.Name', parameters: '', description: 'Column header name, or an empty string when headers are disabled.', source: csvSource, section: csvSection },
+  { name: 'Value', qualifiedName: 'XPCsvColumn.Value', owner: 'XPCsvColumn', kind: 'property', syntax: 'column.Value', parameters: '', description: 'Column text value.', source: csvSource, section: csvSection }
 ];
 for (const item of csvItems) addItem(item);
 
