@@ -38,7 +38,7 @@
     }
   },
   "scripts": {
-    "generate:catalog": "node scripts/generate-catalog.mjs",
+    "generate:catalog": "node scripts/generate-catalog.mjs && node scripts/augment-catalog.mjs",
     "compile": "npm run generate:catalog && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "prepare:publish": "node -e \"require('fs').mkdirSync('publish',{recursive:true})\"",
