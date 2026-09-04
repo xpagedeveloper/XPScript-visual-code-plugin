@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { apiCatalog, ApiItem } from './generated/apiCatalog';
+import { parameterHelp, ApiParameterHelp } from './generated/parameterHelp';
 
 const byOwner = new Map<string, ApiItem[]>();
 const byName = new Map<string, ApiItem[]>();
@@ -10,6 +11,10 @@ for (const item of apiCatalog) {
   }
   const nameKey = item.name.toLowerCase();
   byName.set(nameKey, [...(byName.get(nameKey) ?? []), item]);
+}
+
+function parameterDetailsFor(item: ApiItem): ApiParameterHelp[] {
+  return parameterHelp[item.qualifiedName.toLowerCase()] ?? [];
 }
 
 function memberFor(owner: string, name: string): ApiItem | undefined {
@@ -49,9 +54,6 @@ export function resolveVariableTypes(text: string): Map<string, string> {
     if (fn?.returnType) types.set(match[1].toLowerCase(), fn.returnType);
   }
 
-  // Resolve assignments from known object properties and methods, for example:
-  // Set rows = doc.Rows
-  // Set row = doc.AddRow()
   const memberAssignments = /^\s*(?:Set\s+)?(\w+)\s*=\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*(?:\([^\r\n]*?\))?)*)\s*$/gim;
   let changed = true;
   while (changed) {
@@ -78,11 +80,30 @@ function completionKind(item: ApiItem): vscode.CompletionItemKind {
   }
 }
 
+function parameterLabel(parameter: ApiParameterHelp): string {
+  let label = `\`${parameter.name}\``;
+  if (parameter.type) label += ` As \`${parameter.type}\``;
+  if (!parameter.required) label += ' *(optional)*';
+  return label;
+}
+
 function markdown(item: ApiItem): vscode.MarkdownString {
   const md = new vscode.MarkdownString();
+  const details = parameterDetailsFor(item);
   md.appendCodeblock(item.syntax, 'xpscript');
   if (item.description) md.appendMarkdown(`\n${item.description}`);
-  if (item.parameters && item.parameters.toLowerCase() !== 'none') md.appendMarkdown(`\n\nParameters: ${item.parameters}`);
+
+  if (details.length > 0) {
+    md.appendMarkdown('\n\n### Parameters');
+    for (const parameter of details) {
+      const defaultText = parameter.default !== undefined ? ` Default: \`${String(parameter.default)}\`.` : '';
+      const description = parameter.description || 'No parameter description provided.';
+      md.appendMarkdown(`\n\n- ${parameterLabel(parameter)}: ${description}${defaultText}`);
+    }
+  } else if (item.parameters && item.parameters.toLowerCase() !== 'none') {
+    md.appendMarkdown(`\n\n### Parameters\n\n${item.parameters}`);
+  }
+
   if (item.returnType) md.appendMarkdown(`\n\nReturns: \`${item.returnType}\``);
   if (item.writable) md.appendMarkdown('\n\nRead/Write');
   md.appendMarkdown(`\n\nSource: \`${item.source}\``);
@@ -153,10 +174,23 @@ export function getSignatureHelp(document: vscode.TextDocument, position: vscode
   if (!item || item.kind !== 'function') return undefined;
 
   const sig = new vscode.SignatureInformation(item.syntax, markdown(item));
-  const rawParams = item.parameters && item.parameters.toLowerCase() !== 'none'
-    ? item.parameters.split(';').flatMap(x => x.split(',')).map(x => x.trim()).filter(Boolean)
-    : [];
-  sig.parameters = rawParams.map(p => new vscode.ParameterInformation(p));
+  const details = parameterDetailsFor(item);
+  if (details.length > 0) {
+    sig.parameters = details.map(parameter => {
+      const label = parameter.type ? `${parameter.name} As ${parameter.type}` : parameter.name;
+      const parameterDocs = new vscode.MarkdownString();
+      parameterDocs.appendMarkdown(parameter.description || 'No parameter description provided.');
+      if (!parameter.required) parameterDocs.appendMarkdown('\n\nOptional.');
+      if (parameter.default !== undefined) parameterDocs.appendMarkdown(`\n\nDefault: \`${String(parameter.default)}\`.`);
+      return new vscode.ParameterInformation(label, parameterDocs);
+    });
+  } else {
+    const rawParams = item.parameters && item.parameters.toLowerCase() !== 'none'
+      ? item.parameters.split(';').flatMap(x => x.split(',')).map(x => x.trim()).filter(Boolean)
+      : [];
+    sig.parameters = rawParams.map(p => new vscode.ParameterInformation(p));
+  }
+
   const help = new vscode.SignatureHelp();
   help.signatures = [sig];
   help.activeSignature = 0;
