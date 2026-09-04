@@ -1,0 +1,53 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "XPscript",
+  "scopeName": "source.xpscript",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#keywords" },
+    { "include": "#numbers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.apostrophe.xpscript",
+          "match": "'.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.xpscript",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "match": "\"\"", "name": "constant.character.escape.xpscript" }
+          ]
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.xpscript",
+          "match": "(?i)\\b(Class|End|Function|Sub|Property|Public|Private|Dim|As|Set|New|If|Then|Else|ElseIf|For|Each|In|Next|While|Wend|Do|Loop|Until|Select|Case|Exit|Return|Call|ByVal|ByRef|Const|Option|Declare|Explicit|On|Error|Resume)\\b"
+        },
+        {
+          "name": "constant.language.xpscript",
+          "match": "(?i)\\b(True|False|Nothing)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.xpscript",
+          "match": "\\b\\d+(?:\\.\\d+)?\\b"
+        }
+      ]
+    }
+  }
+}
