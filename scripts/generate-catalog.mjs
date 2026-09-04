@@ -27,6 +27,13 @@ const preferred = [
 const rest = fs.readdirSync(docsDir).filter(f => f.endsWith('.md') && !preferred.includes(f));
 const files = [...preferred.filter(f => fs.existsSync(path.join(docsDir, f))), ...rest];
 
+const sectionOwners = new Map([
+  ['Native HTTP client', 'HttpClient'], ['HTTP response', 'HttpResponse'], ['SQLite', 'XPDBSQLite'],
+  ['SQL Server', 'XPDbMsSql'], ['Supabase HTTP database', 'HTTPDBSupabase'], ['Domino REST database', 'HTTPDBDominoRest'],
+  ['XPAi', 'XPAi'], ['AITool', 'AITool'], ['UIForm', 'UIForm'], ['UIListView', 'UIListView'],
+  ['Response', 'Response'], ['Session', 'Session'], ['RequestScope', 'RequestScope']
+]);
+
 const knownReturnTypes = {
   'HttpClient.Get': 'HttpResponse', 'HttpClient.Post': 'HttpResponse', 'HttpClient.Put': 'HttpResponse',
   'HttpClient.Patch': 'HttpResponse', 'HttpClient.Delete': 'HttpResponse', 'HttpClient.GetJson': 'JsonDocument',
@@ -45,12 +52,9 @@ const items = new Map();
 const clean = s => s.trim().replace(/^`|`$/g, '').replace(/\\\|/g, '|');
 const splitRow = line => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(clean);
 const keyFor = item => item.qualifiedName.toLowerCase();
+const normalizeName = raw => raw.replace(/^`|`$/g, '').replace(/\(.*$/, '').trim();
 
-function normalizeName(raw) {
-  return raw.replace(/^`|`$/g, '').replace(/\(.*$/, '').trim();
-}
-
-function inferOwner(name) {
+function explicitOwner(name) {
   if (!name.includes('.')) return undefined;
   return name.slice(0, name.lastIndexOf('.'));
 }
@@ -82,8 +86,10 @@ for (const file of files) {
       if (!cells[nameIdx] || !cells[syntaxIdx]) continue;
       const rawName = normalizeName(cells[nameIdx]);
       const syntax = cells[syntaxIdx];
-      const owner = inferOwner(rawName);
-      const name = owner ? rawName.slice(rawName.lastIndexOf('.') + 1) : rawName;
+      const explicit = explicitOwner(rawName);
+      const headingOwner = file === 'api-reference.md' ? sectionOwners.get(heading) : undefined;
+      const owner = explicit ?? headingOwner;
+      const name = explicit ? rawName.slice(rawName.lastIndexOf('.') + 1) : rawName;
       const qualifiedName = owner ? `${owner}.${name}` : name;
       const item = {
         name, qualifiedName, owner,
@@ -101,7 +107,6 @@ for (const file of files) {
   }
 }
 
-// Add FileInfo's documented object properties from prose.
 for (const name of ['Name','FullPath','Extension','Length','Created','Modified','Accessed','IsFile','IsDirectory','IsLink','Attributes']) {
   const item = { name, qualifiedName: `FileInfo.${name}`, owner: 'FileInfo', kind: 'property', syntax: `fileInfo.${name}`, parameters: '', description: `FileInfo ${name} property.`, source: 'docs/file-io-reference.md', section: 'FileInfo' };
   if (!items.has(keyFor(item))) items.set(keyFor(item), item);
