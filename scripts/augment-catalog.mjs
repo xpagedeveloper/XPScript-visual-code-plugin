@@ -25,6 +25,7 @@ add({ name:'SaveFile', qualifiedName:'XPCsvDocument.SaveFile', owner:'XPCsvDocum
 
 // XPAi prompt and structured-result surface.
 const aiSource = 'docs/ai.md';
+add({ name:'XPAiResponse', qualifiedName:'XPAiResponse', kind:'class', syntax:'Dim response As XPAiResponse', parameters:'', description:'Response returned by XPAi Complete and Stream.', source:aiSource, section:'Response' });
 const aiProps = [
   ['SystemPrompt','ai.SystemPrompt','Gets or sets the first system prompt message.',true],
   ['UserPrompt','ai.UserPrompt','Gets or sets the final user prompt message.',true],
@@ -39,20 +40,23 @@ const aiMethods = [
   ['ClearPrompt','ai.ClearPrompt()','','Clears both prompt parts.'],
   ['SetResultClass','ai.SetResultClass(contract [, name [, strict]])','contract; name; strict','Derives structured-result JSON Schema from an XPscript class instance.'],
   ['SetJsonSchema','ai.SetJsonSchema(schema [, name [, strict]])','schema; name; strict','Sets an explicit raw JSON Schema.'],
-  ['ClearJsonSchema','ai.ClearJsonSchema()','','Removes structured-output configuration.']
+  ['ClearJsonSchema','ai.ClearJsonSchema()','','Removes structured-output configuration.'],
+  ['Complete','ai.Complete([messages [, model]])','messages; model','Sends a non-streaming request.','XPAiResponse'],
+  ['Stream','ai.Stream([messages,] callback [, model])','messages; callback; model','Sends an SSE request and invokes the callback for each text chunk.','XPAiResponse'],
+  ['GetMessages','ai.GetMessages()','','Returns a cloned message array as XPJsonDocument.','XPJsonDocument']
 ];
-for (const [name, syntax, parameters, description] of aiMethods) add({ name, qualifiedName:`XPAi.${name}`, owner:'XPAi', kind:'function', syntax, parameters, description, source:aiSource, section:'Complete API reference' });
+for (const [name, syntax, parameters, description, returnType] of aiMethods) add({ name, qualifiedName:`XPAi.${name}`, owner:'XPAi', kind:'function', syntax, parameters, description, ...(returnType ? {returnType}:{}), source:aiSource, section:'Complete API reference' });
 for (const [name, syntax, description, returnType] of [
+  ['StatusCode','response.StatusCode','HTTP response status code.',undefined],
+  ['IsSuccess','response.IsSuccess','True for an HTTP success status.',undefined],
+  ['Model','response.Model','Model returned by the provider.',undefined],
+  ['Text','response.Text','Assistant text extracted from the response.',undefined],
+  ['Content','response.Content','Alias for Text.',undefined],
   ['HasJsonResult','response.HasJsonResult','True when Text contains valid JSON within XPscript JSON limits.',undefined],
   ['ResultJson','response.ResultJson','Parses Text and returns a JSON document.','XPJsonDocument'],
   ['RawJson','response.RawJson','Complete provider JSON response.','XPJsonDocument'],
   ['Usage','response.Usage','Provider usage object.','XPJsonDocument']
 ]) add({ name, qualifiedName:`XPAiResponse.${name}`, owner:'XPAiResponse', kind:'property', syntax, parameters:'', description, ...(returnType ? {returnType}:{}), source:aiSource, section:'Response' });
-for (const [name, returnType] of [['Complete','XPAiResponse'],['Stream','XPAiResponse'],['GetMessages','XPJsonDocument']]) {
-  const key = `xpai.${name}`;
-  const existing = byKey.get(key);
-  if (existing) byKey.set(key, {...existing, returnType});
-}
 
 // Current native XML DOM. This documentation uses Member|Behavior tables, which the base parser does not consume.
 const xmlSource = 'docs/native-xml.md';
@@ -86,6 +90,11 @@ const xmlMembers = {
 };
 for (const [owner, members] of Object.entries(xmlMembers)) {
   for (const [name, kind, syntax, parameters, returnType, writable] of members) add({name,qualifiedName:`${owner}.${name}`,owner,kind,syntax,parameters:parameters||'',description:`${owner}.${name}.`,...(returnType?{returnType}:{}),...(writable?{writable:true}:{}),source:xmlSource,section:owner});
+}
+// XPXmlElement is also an XPXmlNode. Duplicate the inherited public node surface for exact-type completion without inventing another user-facing type.
+for (const [name, kind, syntax, parameters, returnType, writable] of xmlMembers.XPXmlNode) {
+  if (name === 'Name') continue;
+  add({name,qualifiedName:`XPXmlElement.${name}`,owner:'XPXmlElement',kind,syntax:syntax.replace(/^node\./,'element.'),parameters:parameters||'',description:`Inherited XPXmlNode ${name}.`,...(returnType?{returnType}:{}),...(writable?{writable:true}:{}),source:xmlSource,section:'XPXmlNode navigation'});
 }
 
 // UIForm accessibility form-level API. Field metadata is documented but the returned field object has no public XPscript type name, so no synthetic public type is introduced here.
