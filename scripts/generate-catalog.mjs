@@ -54,6 +54,10 @@ const splitRow = line => line.trim().replace(/^\|/, '').replace(/\|$/, '').split
 const keyFor = item => item.qualifiedName.toLowerCase();
 const normalizeName = raw => raw.replace(/^`|`$/g, '').replace(/\(.*$/, '').trim();
 
+function addItem(item) {
+  if (!items.has(keyFor(item))) items.set(keyFor(item), item);
+}
+
 function explicitOwner(name) {
   if (!name.includes('.')) return undefined;
   return name.slice(0, name.lastIndexOf('.'));
@@ -91,7 +95,7 @@ for (const file of files) {
       const owner = explicit ?? headingOwner;
       const name = explicit ? rawName.slice(rawName.lastIndexOf('.') + 1) : rawName;
       const qualifiedName = owner ? `${owner}.${name}` : name;
-      const item = {
+      addItem({
         name, qualifiedName, owner,
         kind: inferKind(name, syntax, owner),
         syntax,
@@ -101,16 +105,58 @@ for (const file of files) {
         writable: writable.has(qualifiedName),
         source: `docs/${file}`,
         section: heading
-      };
-      if (!items.has(keyFor(item))) items.set(keyFor(item), item);
+      });
     }
   }
 }
 
 for (const name of ['Name','FullPath','Extension','Length','Created','Modified','Accessed','IsFile','IsDirectory','IsLink','Attributes']) {
-  const item = { name, qualifiedName: `FileInfo.${name}`, owner: 'FileInfo', kind: 'property', syntax: `fileInfo.${name}`, parameters: '', description: `FileInfo ${name} property.`, source: 'docs/file-io-reference.md', section: 'FileInfo' };
-  if (!items.has(keyFor(item))) items.set(keyFor(item), item);
+  addItem({ name, qualifiedName: `FileInfo.${name}`, owner: 'FileInfo', kind: 'property', syntax: `fileInfo.${name}`, parameters: '', description: `FileInfo ${name} property.`, source: 'docs/file-io-reference.md', section: 'FileInfo' });
 }
+
+// docs/native-csv.md documents its public API as prose and bullet lists rather than
+// the Member|Syntax table format used by the main references. Keep this explicit list
+// tied to that document so the extension exposes only the public CSV surface.
+const csvSource = 'docs/native-csv.md';
+const csvSection = 'Native CSV';
+const csvItems = [
+  { name: 'CsvDocument', qualifiedName: 'CsvDocument', kind: 'class', syntax: 'Dim doc As New CsvDocument', parameters: '', description: 'Creates an empty CSV document.', source: csvSource, section: csvSection },
+  { name: 'CsvParse', qualifiedName: 'CsvParse', kind: 'function', syntax: 'CsvParse(text [, delimiter [, hasHeaders]])', parameters: 'text; delimiter; hasHeaders', description: 'Parses CSV text.', returnType: 'CsvDocument', source: csvSource, section: csvSection },
+  { name: 'CsvParseBytes', qualifiedName: 'CsvParseBytes', kind: 'function', syntax: 'CsvParseBytes(bytes, encoding [, delimiter [, hasHeaders]])', parameters: 'bytes; encoding; delimiter; hasHeaders', description: 'Parses CSV byte data using an explicit encoding.', returnType: 'CsvDocument', source: csvSource, section: csvSection },
+  { name: 'CsvStringify', qualifiedName: 'CsvStringify', kind: 'function', syntax: 'CsvStringify(document)', parameters: 'document', description: 'Serializes a CsvDocument to CSV text.', source: csvSource, section: csvSection },
+  { name: 'CsvEscape', qualifiedName: 'CsvEscape', kind: 'function', syntax: 'CsvEscape(value [, delimiter])', parameters: 'value; delimiter', description: 'Escapes one CSV field value.', source: csvSource, section: csvSection },
+
+  { name: 'Parse', qualifiedName: 'CsvDocument.Parse', owner: 'CsvDocument', kind: 'function', syntax: 'CsvDocument.Parse(text [, delimiter [, hasHeaders]])', parameters: 'text; delimiter; hasHeaders', description: 'Parses CSV text.', returnType: 'CsvDocument', source: csvSource, section: csvSection },
+  { name: 'ParseBytes', qualifiedName: 'CsvDocument.ParseBytes', owner: 'CsvDocument', kind: 'function', syntax: 'CsvDocument.ParseBytes(bytes, encoding [, delimiter [, hasHeaders]])', parameters: 'bytes; encoding; delimiter; hasHeaders', description: 'Parses CSV bytes using an explicit encoding.', returnType: 'CsvDocument', source: csvSource, section: csvSection },
+  { name: 'Headers', qualifiedName: 'CsvDocument.Headers', owner: 'CsvDocument', kind: 'property', syntax: 'doc.Headers', parameters: '', description: 'Indexed and iterable collection of CSV headers.', returnType: 'CsvHeaderCollection', source: csvSource, section: csvSection },
+  { name: 'Rows', qualifiedName: 'CsvDocument.Rows', owner: 'CsvDocument', kind: 'property', syntax: 'doc.Rows', parameters: '', description: 'Indexed and iterable collection of CSV rows.', returnType: 'CsvRowCollection', source: csvSource, section: csvSection },
+  { name: 'RowCount', qualifiedName: 'CsvDocument.RowCount', owner: 'CsvDocument', kind: 'property', syntax: 'doc.RowCount', parameters: '', description: 'Number of data rows.', source: csvSource, section: csvSection },
+  { name: 'ColumnCount', qualifiedName: 'CsvDocument.ColumnCount', owner: 'CsvDocument', kind: 'property', syntax: 'doc.ColumnCount', parameters: '', description: 'Number of columns.', source: csvSource, section: csvSection },
+  { name: 'HasHeaders', qualifiedName: 'CsvDocument.HasHeaders', owner: 'CsvDocument', kind: 'property', syntax: 'doc.HasHeaders', parameters: '', description: 'Controls whether the document treats the first record as headers.', writable: true, source: csvSource, section: csvSection },
+  { name: 'Delimiter', qualifiedName: 'CsvDocument.Delimiter', owner: 'CsvDocument', kind: 'property', syntax: 'doc.Delimiter', parameters: '', description: 'CSV delimiter. Comma and semicolon are supported.', writable: true, source: csvSource, section: csvSection },
+  { name: 'Encoding', qualifiedName: 'CsvDocument.Encoding', owner: 'CsvDocument', kind: 'property', syntax: 'doc.Encoding', parameters: '', description: 'Encoding used when serializing the document to bytes.', writable: true, source: csvSource, section: csvSection },
+  { name: 'AddHeader', qualifiedName: 'CsvDocument.AddHeader', owner: 'CsvDocument', kind: 'function', syntax: 'doc.AddHeader(name)', parameters: 'name', description: 'Adds a header and extends existing rows with an empty value.', source: csvSource, section: csvSection },
+  { name: 'AddRow', qualifiedName: 'CsvDocument.AddRow', owner: 'CsvDocument', kind: 'function', syntax: 'doc.AddRow()', parameters: '', description: 'Adds a row to the document.', returnType: 'CsvRow', source: csvSource, section: csvSection },
+  { name: 'Stringify', qualifiedName: 'CsvDocument.Stringify', owner: 'CsvDocument', kind: 'function', syntax: 'doc.Stringify()', parameters: '', description: 'Serializes the document to CSV text.', source: csvSource, section: csvSection },
+  { name: 'ToBytes', qualifiedName: 'CsvDocument.ToBytes', owner: 'CsvDocument', kind: 'function', syntax: 'doc.ToBytes([encoding])', parameters: 'encoding', description: 'Serializes the document to bytes using the document encoding or an explicit encoding.', source: csvSource, section: csvSection },
+
+  { name: 'Count', qualifiedName: 'CsvHeaderCollection.Count', owner: 'CsvHeaderCollection', kind: 'property', syntax: 'headers.Count', parameters: '', description: 'Number of headers.', source: csvSource, section: csvSection },
+  { name: 'Get', qualifiedName: 'CsvHeaderCollection.Get', owner: 'CsvHeaderCollection', kind: 'function', syntax: 'headers.Get(index)', parameters: 'index', description: 'Returns the header at a zero-based index.', returnType: 'String', source: csvSource, section: csvSection },
+  { name: 'Count', qualifiedName: 'CsvRowCollection.Count', owner: 'CsvRowCollection', kind: 'property', syntax: 'rows.Count', parameters: '', description: 'Number of rows.', source: csvSource, section: csvSection },
+  { name: 'Get', qualifiedName: 'CsvRowCollection.Get', owner: 'CsvRowCollection', kind: 'function', syntax: 'rows.Get(index)', parameters: 'index', description: 'Returns the row at a zero-based index.', returnType: 'CsvRow', source: csvSource, section: csvSection },
+  { name: 'Count', qualifiedName: 'CsvColumnCollection.Count', owner: 'CsvColumnCollection', kind: 'property', syntax: 'columns.Count', parameters: '', description: 'Number of columns in the row.', source: csvSource, section: csvSection },
+  { name: 'Get', qualifiedName: 'CsvColumnCollection.Get', owner: 'CsvColumnCollection', kind: 'function', syntax: 'columns.Get(index)', parameters: 'index', description: 'Returns the column at a zero-based index.', returnType: 'CsvColumn', source: csvSource, section: csvSection },
+
+  { name: 'Count', qualifiedName: 'CsvRow.Count', owner: 'CsvRow', kind: 'property', syntax: 'row.Count', parameters: '', description: 'Number of values in the row.', source: csvSource, section: csvSection },
+  { name: 'Columns', qualifiedName: 'CsvRow.Columns', owner: 'CsvRow', kind: 'property', syntax: 'row.Columns', parameters: '', description: 'Indexed and iterable collection of columns in the row.', returnType: 'CsvColumnCollection', source: csvSource, section: csvSection },
+  { name: 'Get', qualifiedName: 'CsvRow.Get', owner: 'CsvRow', kind: 'function', syntax: 'row.Get(indexOrName)', parameters: 'indexOrName', description: 'Returns a value by zero-based column index or case-insensitive header name.', returnType: 'String', source: csvSource, section: csvSection },
+  { name: 'Set', qualifiedName: 'CsvRow.Set', owner: 'CsvRow', kind: 'function', syntax: 'row.Set(indexOrName, value)', parameters: 'indexOrName; value', description: 'Sets an existing value by zero-based index or header name.', source: csvSource, section: csvSection },
+
+  { name: 'Index', qualifiedName: 'CsvColumn.Index', owner: 'CsvColumn', kind: 'property', syntax: 'column.Index', parameters: '', description: 'Zero-based column index.', source: csvSource, section: csvSection },
+  { name: 'Name', qualifiedName: 'CsvColumn.Name', owner: 'CsvColumn', kind: 'property', syntax: 'column.Name', parameters: '', description: 'Column header name, or an empty string when headers are disabled.', source: csvSource, section: csvSection },
+  { name: 'Value', qualifiedName: 'CsvColumn.Value', owner: 'CsvColumn', kind: 'property', syntax: 'column.Value', parameters: '', description: 'Column text value.', source: csvSource, section: csvSection }
+];
+for (const item of csvItems) addItem(item);
 
 const catalog = [...items.values()].sort((a,b) => a.qualifiedName.localeCompare(b.qualifiedName));
 fs.mkdirSync(path.dirname(outFile), { recursive: true });
