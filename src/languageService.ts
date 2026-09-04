@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { apiCatalog, ApiItem } from './generated/apiCatalog';
+import { parameterHelp, ApiParameterHelp } from './generated/parameterHelp';
 
 const byOwner = new Map<string, ApiItem[]>();
 const byName = new Map<string, ApiItem[]>();
@@ -10,6 +11,10 @@ for (const item of apiCatalog) {
   }
   const nameKey = item.name.toLowerCase();
   byName.set(nameKey, [...(byName.get(nameKey) ?? []), item]);
+}
+
+function parameterDetailsFor(item: ApiItem): ApiParameterHelp[] {
+  return parameterHelp[item.qualifiedName.toLowerCase()] ?? [];
 }
 
 function memberFor(owner: string, name: string): ApiItem | undefined {
@@ -75,7 +80,7 @@ function completionKind(item: ApiItem): vscode.CompletionItemKind {
   }
 }
 
-function parameterLabel(parameter: NonNullable<ApiItem['parameterDetails']>[number]): string {
+function parameterLabel(parameter: ApiParameterHelp): string {
   let label = `\`${parameter.name}\``;
   if (parameter.type) label += ` As \`${parameter.type}\``;
   if (!parameter.required) label += ' *(optional)*';
@@ -84,12 +89,13 @@ function parameterLabel(parameter: NonNullable<ApiItem['parameterDetails']>[numb
 
 function markdown(item: ApiItem): vscode.MarkdownString {
   const md = new vscode.MarkdownString();
+  const details = parameterDetailsFor(item);
   md.appendCodeblock(item.syntax, 'xpscript');
   if (item.description) md.appendMarkdown(`\n${item.description}`);
 
-  if (item.parameterDetails && item.parameterDetails.length > 0) {
+  if (details.length > 0) {
     md.appendMarkdown('\n\n### Parameters');
-    for (const parameter of item.parameterDetails) {
+    for (const parameter of details) {
       const defaultText = parameter.default !== undefined ? ` Default: \`${String(parameter.default)}\`.` : '';
       const description = parameter.description || 'No parameter description provided.';
       md.appendMarkdown(`\n\n- ${parameterLabel(parameter)}: ${description}${defaultText}`);
@@ -168,14 +174,15 @@ export function getSignatureHelp(document: vscode.TextDocument, position: vscode
   if (!item || item.kind !== 'function') return undefined;
 
   const sig = new vscode.SignatureInformation(item.syntax, markdown(item));
-  if (item.parameterDetails && item.parameterDetails.length > 0) {
-    sig.parameters = item.parameterDetails.map(parameter => {
+  const details = parameterDetailsFor(item);
+  if (details.length > 0) {
+    sig.parameters = details.map(parameter => {
       const label = parameter.type ? `${parameter.name} As ${parameter.type}` : parameter.name;
-      const details = new vscode.MarkdownString();
-      details.appendMarkdown(parameter.description || 'No parameter description provided.');
-      if (!parameter.required) details.appendMarkdown('\n\nOptional.');
-      if (parameter.default !== undefined) details.appendMarkdown(`\n\nDefault: \`${String(parameter.default)}\`.`);
-      return new vscode.ParameterInformation(label, details);
+      const parameterDocs = new vscode.MarkdownString();
+      parameterDocs.appendMarkdown(parameter.description || 'No parameter description provided.');
+      if (!parameter.required) parameterDocs.appendMarkdown('\n\nOptional.');
+      if (parameter.default !== undefined) parameterDocs.appendMarkdown(`\n\nDefault: \`${String(parameter.default)}\`.`);
+      return new vscode.ParameterInformation(label, parameterDocs);
     });
   } else {
     const rawParams = item.parameters && item.parameters.toLowerCase() !== 'none'
