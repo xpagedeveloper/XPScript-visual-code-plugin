@@ -2,17 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const docsRepo = process.env.XPSCRIPT_ASTRO_DOCS_PATH || process.argv[2];
-const outFile = path.resolve('src/generated/apiCatalog.ts');
-if (!docsRepo || !fs.existsSync(path.join(docsRepo, 'docs')) || !fs.existsSync(outFile)) process.exit(0);
+const outFile = path.resolve('src/generated/parameterHelp.ts');
 
-let source = fs.readFileSync(outFile, 'utf8');
-const marker = 'export const apiCatalog: ApiItem[] = ';
-const start = source.indexOf(marker);
-if (start < 0) throw new Error('apiCatalog marker not found');
-const jsonStart = start + marker.length;
-const jsonEnd = source.lastIndexOf(';');
-const items = JSON.parse(source.slice(jsonStart, jsonEnd));
-const byKey = new Map(items.map(item => [item.qualifiedName.toLowerCase(), item]));
+const empty = `export interface ApiParameterHelp {\n  name: string;\n  type?: string;\n  required: boolean;\n  default?: string | number | boolean | null;\n  description: string;\n}\n\nexport const parameterHelp: Record<string, ApiParameterHelp[]> = {};\n`;
+if (!docsRepo || !fs.existsSync(path.join(docsRepo, 'docs'))) {
+  fs.mkdirSync(path.dirname(outFile), { recursive: true });
+  fs.writeFileSync(outFile, empty);
+  process.exit(0);
+}
 
 function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
@@ -28,6 +25,8 @@ function scalar(raw) {
     return value.slice(1, -1);
   }
   if (/^(true|false)$/i.test(value)) return /^true$/i.test(value);
+  if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
+  if (/^(null|~)$/i.test(value)) return null;
   return value;
 }
 
@@ -60,36 +59,24 @@ function parseFrontmatter(text) {
   return data;
 }
 
-let applied = 0;
+const help = {};
 for (const file of walk(path.join(docsRepo, 'docs'))) {
   const data = parseFrontmatter(fs.readFileSync(file, 'utf8'));
   if (!data || data.migration !== 'complete' || data.type !== 'function' || !Array.isArray(data.parameters)) continue;
   const name = String(data.title || '').trim();
+  if (!name) continue;
   const owner = String(data.object || '').trim();
   const key = (owner ? `${owner}.${name}` : name).toLowerCase();
-  const item = byKey.get(key);
-  if (!item) continue;
-  item.description = String(data.shortDescription || item.description || '').trim();
-  item.parameterDetails = data.parameters.filter(p => p?.name).map(p => ({
+  help[key] = data.parameters.filter(p => p?.name).map(p => ({
     name: String(p.name),
     ...(p.type ? { type: String(p.type) } : {}),
     required: p.required !== false,
     ...(p.default !== undefined ? { default: p.default } : {}),
     description: String(p.description || '').trim()
   }));
-  applied++;
 }
 
-let header = source.slice(0, jsonStart);
-if (!header.includes('export interface ApiParameter')) {
-  header = header.replace(
-    "export interface ApiItem {",
-    "export interface ApiParameter {\n  name: string;\n  type?: string;\n  required: boolean;\n  default?: string | number | boolean | null;\n  description: string;\n}\n\nexport interface ApiItem {"
-  );
-}
-if (!header.includes('parameterDetails?: ApiParameter[];')) {
-  header = header.replace('  parameters: string;\n', '  parameters: string;\n  parameterDetails?: ApiParameter[];\n');
-}
-const catalog = [...byKey.values()].sort((a, b) => a.qualifiedName.localeCompare(b.qualifiedName));
-fs.writeFileSync(outFile, `${header}${JSON.stringify(catalog, null, 2)};\n`);
-console.log(`Applied structured parameter help to ${applied} IntelliSense entries.`);
+fs.mkdirSync(path.dirname(outFile), { recursive: true });
+const header = `export interface ApiParameterHelp {\n  name: string;\n  type?: string;\n  required: boolean;\n  default?: string | number | boolean | null;\n  description: string;\n}\n\n`;
+fs.writeFileSync(outFile, `${header}export const parameterHelp: Record<string, ApiParameterHelp[]> = ${JSON.stringify(help, null, 2)};\n`);
+console.log(`Generated structured parameter help for ${Object.keys(help).length} IntelliSense entries.`);
