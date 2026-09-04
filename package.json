@@ -1,0 +1,67 @@
+{
+  "name": "xpscript",
+  "displayName": "XPscript",
+  "description": "XPscript language support with repository-driven IntelliSense.",
+  "version": "0.1.0",
+  "publisher": "xpagedeveloper",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": ["Programming Languages"],
+  "activationEvents": [
+    "onLanguage:xpscript",
+    "onCommand:xpscript.refreshApiIndex"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "xpscript",
+        "aliases": ["XPscript", "xpscript"],
+        "extensions": [".xps", ".xpscript"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "xpscript",
+        "scopeName": "source.xpscript",
+        "path": "./syntaxes/xpscript.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "xpscript.refreshApiIndex",
+        "title": "XPscript: Refresh API Index"
+      }
+    ],
+    "configuration": {
+      "title": "XPscript",
+      "properties": {
+        "xpscript.runtimeRepoPath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to a local checkout of the XPscript repository. Runtime objects, functions and properties are indexed from this repository."
+        },
+        "xpscript.indexWorkspace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Index XPscript declarations in the current workspace."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "prepare:publish": "node -e \"require('fs').mkdirSync('publish',{recursive:true})\"",
+    "package": "npm run compile && npm run prepare:publish && vsce package --out publish/xpscript.vsix",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.95.0",
+    "@vscode/vsce": "^3.2.1",
+    "typescript": "^5.7.2"
+  }
+}
