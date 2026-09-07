@@ -2,7 +2,7 @@
   "name": "xpscript",
   "displayName": "XPscript",
   "description": "XPscript language support with repository-driven IntelliSense.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "xpagedeveloper",
   "repository": {
     "type": "git",
@@ -10,7 +10,7 @@
   },
   "engines": { "vscode": "^1.95.0" },
   "categories": ["Programming Languages"],
-  "activationEvents": ["onLanguage:xpscript", "onCommand:xpscript.refreshApiIndex"],
+  "activationEvents": ["onLanguage:xpscript", "onCommand:xpscript.refreshApiIndex", "onCommand:xpscript.checkForUpdates"],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [{
@@ -24,7 +24,10 @@
       "scopeName": "source.xpscript",
       "path": "./syntaxes/xpscript.tmLanguage.json"
     }],
-    "commands": [{ "command": "xpscript.refreshApiIndex", "title": "XPscript: Refresh API Index" }],
+    "commands": [
+      { "command": "xpscript.refreshApiIndex", "title": "XPscript: Refresh API Index" },
+      { "command": "xpscript.checkForUpdates", "title": "XPscript: Check for Updates" }
+    ],
     "configuration": {
       "title": "XPscript",
       "properties": {
@@ -37,6 +40,11 @@
           "type": "boolean",
           "default": true,
           "description": "Index XPscript declarations in the current workspace."
+        },
+        "xpscript.autoUpdate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check GitHub Releases for a newer XPscript extension when the extension starts. Installation always requires explicit approval."
         }
       }
     }
