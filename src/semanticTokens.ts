@@ -1,10 +1,16 @@
 import * as vscode from 'vscode';
 import { apiCatalog, ApiItem } from './generated/apiCatalog';
 
-export const semanticTokensLegend = new vscode.SemanticTokensLegend(
-  ['class', 'function', 'method', 'property', 'variable', 'parameter', 'keyword', 'number', 'string', 'operator'],
-  ['declaration', 'readonly', 'static']
-);
+const tokenTypes = ['class', 'function', 'method', 'property', 'variable', 'parameter', 'keyword', 'number', 'string', 'operator'] as const;
+const tokenModifiers = ['declaration', 'readonly', 'static'] as const;
+
+export const semanticTokensLegend = new vscode.SemanticTokensLegend([...tokenTypes], [...tokenModifiers]);
+
+const typeIndex = new Map(tokenTypes.map((name, index) => [name, index]));
+const modifierIndex = new Map(tokenModifiers.map((name, index) => [name, index]));
+
+type TokenType = typeof tokenTypes[number];
+type TokenModifier = typeof tokenModifiers[number];
 
 const keywords = new Set([
   'class','end','function','sub','property','public','private','dim','as','set','new','if','then','else','elseif',
@@ -71,11 +77,20 @@ function covered(index: number, ranges: Array<[number, number]>): boolean {
   return ranges.some(([start, end]) => index >= start && index < end);
 }
 
-function declarationModifier(before: string, word: string): string[] {
-  if (new RegExp(`\\bClass\\s+${word}$`, 'i').test(before + word)) return ['declaration'];
-  if (new RegExp(`\\b(?:Function|Sub)\\s+${word}$`, 'i').test(before + word)) return ['declaration'];
-  if (new RegExp(`\\b(?:Dim|Static|Public|Private)\\s+${word}$`, 'i').test(before + word)) return ['declaration'];
+function declarationModifiers(before: string, word: string): TokenModifier[] {
+  const full = before + word;
+  if (new RegExp(`\\bClass\\s+${word}$`, 'i').test(full)) return ['declaration'];
+  if (new RegExp(`\\b(?:Function|Sub)\\s+${word}$`, 'i').test(full)) return ['declaration'];
+  if (new RegExp(`\\b(?:Dim|Static|Public|Private)\\s+${word}$`, 'i').test(full)) return ['declaration'];
   return [];
+}
+
+function modifierMask(modifiers: TokenModifier[]): number {
+  return modifiers.reduce((mask, modifier) => mask | (1 << (modifierIndex.get(modifier) ?? 0)), 0);
+}
+
+function push(builder: vscode.SemanticTokensBuilder, line: number, start: number, length: number, type: TokenType, modifiers: TokenModifier[] = []): void {
+  builder.push(line, start, length, typeIndex.get(type) ?? 0, modifierMask(modifiers));
 }
 
 export class XPScriptSemanticTokensProvider implements vscode.DocumentSemanticTokensProvider {
@@ -88,14 +103,14 @@ export class XPScriptSemanticTokensProvider implements vscode.DocumentSemanticTo
       const excluded = stringAndCommentRanges(line);
 
       for (const [start, end] of excluded) {
-        if (line[start] === '"') builder.push(lineNo, start, end - start, 'string', []);
+        if (line[start] === '"') push(builder, lineNo, start, end - start, 'string');
       }
 
       for (const match of line.matchAll(/\b\d+(?:\.\d+)?\b/g)) {
-        if (!covered(match.index!, excluded)) builder.push(lineNo, match.index!, match[0].length, 'number', []);
+        if (!covered(match.index!, excluded)) push(builder, lineNo, match.index!, match[0].length, 'number');
       }
       for (const match of line.matchAll(/(?:<=|>=|<>|=|<|>|\+|-|\*|\/|&)/g)) {
-        if (!covered(match.index!, excluded)) builder.push(lineNo, match.index!, match[0].length, 'operator', []);
+        if (!covered(match.index!, excluded)) push(builder, lineNo, match.index!, match[0].length, 'operator');
       }
 
       for (const match of line.matchAll(/\b[A-Za-z_]\w*\b/g)) {
@@ -107,25 +122,25 @@ export class XPScriptSemanticTokensProvider implements vscode.DocumentSemanticTo
         const after = line.slice(index + word.length);
 
         if (keywords.has(lower) || constants.has(lower)) {
-          builder.push(lineNo, index, word.length, 'keyword', []);
+          push(builder, lineNo, index, word.length, 'keyword');
           continue;
         }
 
-        const modifiers = declarationModifier(before, word);
+        const modifiers = declarationModifiers(before, word);
         if (symbols.classes.has(lower) || apiClassNames.has(lower)) {
-          builder.push(lineNo, index, word.length, 'class', modifiers);
+          push(builder, lineNo, index, word.length, 'class', modifiers);
           continue;
         }
         if (symbols.parameters.has(lower)) {
-          builder.push(lineNo, index, word.length, 'parameter', modifiers);
+          push(builder, lineNo, index, word.length, 'parameter', modifiers);
           continue;
         }
         if (symbols.variables.has(lower)) {
-          builder.push(lineNo, index, word.length, 'variable', modifiers);
+          push(builder, lineNo, index, word.length, 'variable', modifiers);
           continue;
         }
         if (symbols.functions.has(lower)) {
-          builder.push(lineNo, index, word.length, 'function', modifiers);
+          push(builder, lineNo, index, word.length, 'function', modifiers);
           continue;
         }
 
@@ -134,10 +149,10 @@ export class XPScriptSemanticTokensProvider implements vscode.DocumentSemanticTo
           const precededByDot = /\.\s*$/.test(before);
           const followedByCall = /^\s*\(/.test(after);
           const item = candidates.find(x => precededByDot ? !!x.owner : !x.owner) ?? candidates[0];
-          if (item.kind === 'class') builder.push(lineNo, index, word.length, 'class', []);
-          else if (item.kind === 'property') builder.push(lineNo, index, word.length, 'property', item.writable ? [] : ['readonly']);
-          else if (item.kind === 'function') builder.push(lineNo, index, word.length, precededByDot || !!item.owner ? 'method' : 'function', []);
-          else if (followedByCall) builder.push(lineNo, index, word.length, 'function', []);
+          if (item.kind === 'class') push(builder, lineNo, index, word.length, 'class');
+          else if (item.kind === 'property') push(builder, lineNo, index, word.length, 'property', item.writable ? [] : ['readonly']);
+          else if (item.kind === 'function') push(builder, lineNo, index, word.length, precededByDot || !!item.owner ? 'method' : 'function');
+          else if (followedByCall) push(builder, lineNo, index, word.length, 'function');
         }
       }
     }
