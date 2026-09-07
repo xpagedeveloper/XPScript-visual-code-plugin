@@ -114,62 +114,6 @@ From the command line:
 code --uninstall-extension xpagedeveloper.xpscript
 ```
 
-## Creating a release
+## Maintainer documentation
 
-Releases are built by GitHub Actions from version tags.
-
-Before creating a release, update the `version` field in `package.json`. For example:
-
-```json
-"version": "0.2.0"
-```
-
-Commit and merge that change to `main`, then create and push a matching tag:
-
-```bash
-git checkout main
-git pull
-git tag v0.2.0
-git push origin v0.2.0
-```
-
-The tag must match the package version exactly, with a leading `v` on the Git tag.
-
-Examples:
-
-```text
-package.json: 0.2.0  -> tag: v0.2.0
-package.json: 1.0.0  -> tag: v1.0.0
-```
-
-When a matching `v*` tag is pushed, `.github/workflows/release.yml`:
-
-1. checks out the plugin at that tag
-2. checks out the current XPscript source repository
-3. verifies that the tag matches `package.json`
-4. generates the current IntelliSense catalog
-5. compiles the TypeScript extension
-6. packages the extension as a VSIX
-7. creates a GitHub Release with generated release notes
-8. attaches `xpscript-<version>.vsix` to the release
-
-If the tag and package version differ, the release workflow fails instead of publishing an incorrectly versioned VSIX.
-
-## Development builds
-
-The normal build workflow runs for pushes and pull requests against `main` and uploads the packaged VSIX as a GitHub Actions artifact.
-
-For a local build:
-
-```bash
-npm install
-npm run package
-```
-
-The VSIX is written to:
-
-```text
-publish/xpscript.vsix
-```
-
-The build-time IntelliSense catalog is generated from the XPscript repository and its documentation.
+Build, deployment and release instructions are documented in [`scripts/Build.md`](scripts/Build.md).
