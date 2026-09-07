@@ -1,35 +1,33 @@
 import fs from 'node:fs';
-import path from 'node:path';
 
-const catalogPath = path.resolve('src/generated/apiCatalog.ts');
-const removedNames = [
-  'IsWebAgent',
-  'IsActivatable',
-  'ProhibitDesignUpdate',
-  'Target',
-  'HttpURL',
-  'UnLock',
-  'FTSearchScore'
-];
+const outFile = 'src/generated/apiCatalog.ts';
+const source = fs.readFileSync(outFile, 'utf8');
+const marker = 'export const apiCatalog: ApiItem[] = ';
+const start = source.indexOf(marker);
+if (start < 0) throw new Error('apiCatalog marker not found');
+const jsonStart = start + marker.length;
+const jsonEnd = source.lastIndexOf(';');
+if (jsonEnd <= jsonStart) throw new Error('apiCatalog terminator not found');
 
-let text = fs.readFileSync(catalogPath, 'utf8');
-const before = text;
-const lines = text.split(/\r?\n/);
-text = lines
-  .filter(line => !removedNames.some(name =>
-    line.includes(`name:'${name}'`) ||
-    line.includes(`name: '${name}'`) ||
-    line.includes(`.${name}`)
-  ))
-  .join('\n');
+const removedNames = new Set([
+  'iswebagent',
+  'isactivatable',
+  'prohibitdesignupdate',
+  'target',
+  'httpurl',
+  'unlock',
+  'ftsearchscore'
+]);
 
-if (before.endsWith('\n')) text += '\n';
-fs.writeFileSync(catalogPath, text, 'utf8');
+const items = JSON.parse(source.slice(jsonStart, jsonEnd));
+const filtered = items.filter(item => !removedNames.has(String(item.name ?? '').toLowerCase()));
 
-for (const name of removedNames) {
-  if (new RegExp(`(?:name\\s*:\\s*['\"]${name}['\"]|\\.${name}\\b)`).test(text)) {
-    throw new Error(`Removed XPscript API member still present in generated catalog: ${name}`);
+for (const item of filtered) {
+  if (removedNames.has(String(item.name ?? '').toLowerCase())) {
+    throw new Error(`Removed XPscript API member still present in generated catalog: ${item.qualifiedName ?? item.name}`);
   }
 }
 
-console.log('Removed unsupported Notes API members from generated IntelliSense catalog.');
+const header = source.slice(0, jsonStart);
+fs.writeFileSync(outFile, `${header}${JSON.stringify(filtered, null, 2)};\n`);
+console.log(`Removed ${items.length - filtered.length} unsupported Notes API entries from generated IntelliSense catalog.`);
