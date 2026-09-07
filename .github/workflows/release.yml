@@ -2,8 +2,9 @@ name: Release XPscript VS Code plugin
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,49 +16,77 @@ jobs:
     steps:
       - name: Checkout plugin
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve package version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          tag="v${version}"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "SHOULD_RELEASE=false" >> "$GITHUB_ENV"
+            echo "Release $tag already exists. Nothing to publish."
+          else
+            echo "SHOULD_RELEASE=true" >> "$GITHUB_ENV"
+          fi
 
       - name: Checkout XPscript source
+        if: env.SHOULD_RELEASE == 'true'
         uses: actions/checkout@v4
         with:
           repository: xpagedeveloper/XPscript
           path: xpscript-source
 
       - name: Setup Node.js
+        if: env.SHOULD_RELEASE == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Verify tag matches package version
-        shell: bash
-        run: |
-          set -euo pipefail
-          package_version=$(node -p "require('./package.json').version")
-          tag_version="${GITHUB_REF_NAME#v}"
-          if [[ "$package_version" != "$tag_version" ]]; then
-            echo "Tag version $tag_version does not match package.json version $package_version"
-            exit 1
-          fi
-          echo "VERSION=$package_version" >> "$GITHUB_ENV"
-
       - name: Install dependencies
+        if: env.SHOULD_RELEASE == 'true'
         run: npm install
 
       - name: Compile and package
+        if: env.SHOULD_RELEASE == 'true'
         env:
           XPSCRIPT_REPO_PATH: ${{ github.workspace }}/xpscript-source
           XPSCRIPT_ASTRO_DOCS_PATH: ${{ github.workspace }}/xpscript-source
         run: npm run package
 
       - name: Rename VSIX for release
+        if: env.SHOULD_RELEASE == 'true'
         shell: bash
         run: mv publish/xpscript.vsix "publish/xpscript-${VERSION}.vsix"
 
-      - name: Create GitHub Release
+      - name: Create version tag
+        if: env.SHOULD_RELEASE == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release create "$GITHUB_REF_NAME" \
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists."
+          else
+            git tag "$TAG" "$GITHUB_SHA"
+            git push origin "$TAG"
+          fi
+
+      - name: Create GitHub Release
+        if: env.SHOULD_RELEASE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "$TAG" \
             "publish/xpscript-${VERSION}.vsix" \
-            --title "XPscript ${GITHUB_REF_NAME}" \
+            --target "$GITHUB_SHA" \
+            --title "XPscript $TAG" \
             --generate-notes
