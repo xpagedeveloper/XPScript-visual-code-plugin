@@ -76,6 +76,36 @@ for (const file of walk(path.join(docsRepo, 'docs'))) {
   }));
 }
 
+const notesReferencePath = path.join(docsRepo, 'docs', 'notes-c-api.md');
+if (fs.existsSync(notesReferencePath)) {
+  const notesReference = fs.readFileSync(notesReferencePath, 'utf8');
+  const notesSessionDocsPresent = notesReference.includes('The first constructor argument is the directory containing the Notes/Domino native runtime.')
+    && notesReference.includes('The second argument is an optional explicit `notes.ini`.')
+    && notesReference.includes('The third optional argument is an ID password used during Notes initialization.');
+  if (notesSessionDocsPresent) {
+    help.notessession = [
+      {
+        name: 'runtimeDirectory',
+        type: 'String',
+        required: true,
+        description: 'Directory containing the Notes/Domino native runtime.'
+      },
+      {
+        name: 'notesIni',
+        type: 'String',
+        required: false,
+        description: 'Optional explicit path to notes.ini.'
+      },
+      {
+        name: 'idPassword',
+        type: 'String',
+        required: false,
+        description: 'Optional ID password used during Notes initialization.'
+      }
+    ];
+  }
+}
+
 fs.mkdirSync(path.dirname(outFile), { recursive: true });
 const header = `export interface ApiParameterHelp {\n  name: string;\n  type?: string;\n  required: boolean;\n  default?: string | number | boolean | null;\n  description: string;\n}\n\n`;
 fs.writeFileSync(outFile, `${header}export const parameterHelp: Record<string, ApiParameterHelp[]> = ${JSON.stringify(help, null, 2)};\n`);
