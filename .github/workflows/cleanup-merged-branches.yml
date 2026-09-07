@@ -1,0 +1,59 @@
+name: Cleanup merged branches
+
+on:
+  workflow_dispatch:
+    inputs:
+      delete_all_non_main:
+        description: Delete every non-main branch after consolidation
+        required: true
+        type: boolean
+        default: false
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Delete merged branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          DELETE_ALL: ${{ inputs.delete_all_non_main || 'false' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="${REPOSITORY%%/*}"
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune
+
+          mapfile -t branches < <(gh api --paginate "repos/$REPOSITORY/branches?per_page=100" --jq '.[].name')
+          for branch in "${branches[@]}"; do
+            [[ "$branch" == "main" ]] && continue
+
+            delete=false
+            if [[ "$DELETE_ALL" == "true" ]]; then
+              delete=true
+            elif git merge-base --is-ancestor "origin/$branch" origin/main 2>/dev/null; then
+              delete=true
+            else
+              merged_count=$(gh api --paginate "repos/$REPOSITORY/pulls?state=closed&head=$owner:$branch&per_page=100" --jq '[.[] | select(.merged_at != null)] | length' | awk '{s+=$1} END {print s+0}')
+              [[ "$merged_count" -gt 0 ]] && delete=true
+            fi
+
+            if [[ "$delete" == "true" ]]; then
+              echo "Deleting $branch"
+              gh api -X DELETE "repos/$REPOSITORY/git/refs/heads/$branch"
+            else
+              echo "Keeping unmerged branch $branch"
+            fi
+          done
