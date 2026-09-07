@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { apiCatalog, ApiItem } from './generated/apiCatalog';
 import { parameterHelp, ApiParameterHelp } from './generated/parameterHelp';
 
+const XPSCRIPT_REPO_BLOB_BASE = 'https://github.com/xpagedeveloper/XPscript/blob/main/';
+
 const byOwner = new Map<string, ApiItem[]>();
 const byName = new Map<string, ApiItem[]>();
 for (const item of apiCatalog) {
@@ -15,6 +17,22 @@ for (const item of apiCatalog) {
 
 function parameterDetailsFor(item: ApiItem): ApiParameterHelp[] {
   return parameterHelp[item.qualifiedName.toLowerCase()] ?? [];
+}
+
+function sourceUrl(source: string): string | undefined {
+  const clean = source.trim().replace(/^\.\//, '');
+  if (!clean) return undefined;
+  if (/^https?:\/\//i.test(clean)) return clean;
+  return encodeURI(`${XPSCRIPT_REPO_BLOB_BASE}${clean}`);
+}
+
+function rawParameterNames(item: ApiItem): string[] {
+  if (!item.parameters || item.parameters.trim().toLowerCase() === 'none') return [];
+  return item.parameters
+    .split(';')
+    .flatMap(value => value.split(','))
+    .map(value => value.trim())
+    .filter(Boolean);
 }
 
 function memberFor(owner: string, name: string): ApiItem | undefined {
@@ -90,6 +108,7 @@ function parameterLabel(parameter: ApiParameterHelp): string {
 function markdown(item: ApiItem): vscode.MarkdownString {
   const md = new vscode.MarkdownString();
   const details = parameterDetailsFor(item);
+  const rawParameters = rawParameterNames(item);
   md.appendCodeblock(item.syntax, 'xpscript');
   if (item.description) md.appendMarkdown(`\n${item.description}`);
 
@@ -97,16 +116,26 @@ function markdown(item: ApiItem): vscode.MarkdownString {
     md.appendMarkdown('\n\n### Parameters');
     for (const parameter of details) {
       const defaultText = parameter.default !== undefined ? ` Default: \`${String(parameter.default)}\`.` : '';
-      const description = parameter.description || 'No parameter description provided.';
+      const description = parameter.description || 'No separate parameter description is documented.';
       md.appendMarkdown(`\n\n- ${parameterLabel(parameter)}: ${description}${defaultText}`);
     }
-  } else if (item.parameters && item.parameters.toLowerCase() !== 'none') {
-    md.appendMarkdown(`\n\n### Parameters\n\n${item.parameters}`);
+  } else if (rawParameters.length > 0) {
+    md.appendMarkdown('\n\n### Parameters');
+    for (const parameter of rawParameters) {
+      md.appendMarkdown(`\n\n- \`${parameter}\`: Parameter documented by the XPscript API source. See the source link below for usage details.`);
+    }
+  } else if (item.kind === 'function') {
+    md.appendMarkdown('\n\n### Parameters\n\nThis function has no documented parameters.');
+  } else if (item.kind === 'class') {
+    md.appendMarkdown('\n\n### Parameters\n\nNo constructor parameters are documented for this object.');
   }
 
   if (item.returnType) md.appendMarkdown(`\n\nReturns: \`${item.returnType}\``);
   if (item.writable) md.appendMarkdown('\n\nRead/Write');
-  md.appendMarkdown(`\n\nSource: \`${item.source}\``);
+
+  const url = sourceUrl(item.source);
+  if (url) md.appendMarkdown(`\n\nSource: [\`${item.source}\`](${url} "Open XPscript source documentation")`);
+  else md.appendMarkdown(`\n\nSource: \`${item.source}\``);
   return md;
 }
 
@@ -179,16 +208,13 @@ export function getSignatureHelp(document: vscode.TextDocument, position: vscode
     sig.parameters = details.map(parameter => {
       const label = parameter.type ? `${parameter.name} As ${parameter.type}` : parameter.name;
       const parameterDocs = new vscode.MarkdownString();
-      parameterDocs.appendMarkdown(parameter.description || 'No parameter description provided.');
+      parameterDocs.appendMarkdown(parameter.description || 'No separate parameter description is documented.');
       if (!parameter.required) parameterDocs.appendMarkdown('\n\nOptional.');
       if (parameter.default !== undefined) parameterDocs.appendMarkdown(`\n\nDefault: \`${String(parameter.default)}\`.`);
       return new vscode.ParameterInformation(label, parameterDocs);
     });
   } else {
-    const rawParams = item.parameters && item.parameters.toLowerCase() !== 'none'
-      ? item.parameters.split(';').flatMap(x => x.split(',')).map(x => x.trim()).filter(Boolean)
-      : [];
-    sig.parameters = rawParams.map(p => new vscode.ParameterInformation(p));
+    sig.parameters = rawParameterNames(item).map(p => new vscode.ParameterInformation(p, 'Parameter documented by the XPscript API source.'));
   }
 
   const help = new vscode.SignatureHelp();
