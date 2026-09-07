@@ -1,6 +1,9 @@
 name: Cleanup merged branches
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       delete_all_non_main:
@@ -17,7 +20,7 @@ permissions:
 
 jobs:
   cleanup:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,7 +32,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          DELETE_ALL: ${{ inputs.delete_all_non_main || 'false' }}
+          DELETE_ALL: ${{ github.event_name == 'push' && 'true' || inputs.delete_all_non_main || 'false' }}
         shell: bash
         run: |
           set -euo pipefail
