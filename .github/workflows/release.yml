@@ -1,0 +1,63 @@
+name: Release XPscript VS Code plugin
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+
+      - name: Checkout XPscript source
+        uses: actions/checkout@v4
+        with:
+          repository: xpagedeveloper/XPscript
+          path: xpscript-source
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify tag matches package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_version=$(node -p "require('./package.json').version")
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [[ "$package_version" != "$tag_version" ]]; then
+            echo "Tag version $tag_version does not match package.json version $package_version"
+            exit 1
+          fi
+          echo "VERSION=$package_version" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Compile and package
+        env:
+          XPSCRIPT_REPO_PATH: ${{ github.workspace }}/xpscript-source
+          XPSCRIPT_ASTRO_DOCS_PATH: ${{ github.workspace }}/xpscript-source
+        run: npm run package
+
+      - name: Rename VSIX for release
+        shell: bash
+        run: mv publish/xpscript.vsix "publish/xpscript-${VERSION}.vsix"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "publish/xpscript-${VERSION}.vsix" \
+            --title "XPscript ${GITHUB_REF_NAME}" \
+            --generate-notes
