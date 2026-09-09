@@ -9,8 +9,13 @@
     "url": "https://github.com/xpagedeveloper/XPScript-visual-code-plugin.git"
   },
   "engines": { "vscode": "^1.95.0" },
-  "categories": ["Programming Languages"],
-  "activationEvents": ["onLanguage:xpscript", "onCommand:xpscript.refreshApiIndex", "onCommand:xpscript.checkForUpdates"],
+  "categories": ["Programming Languages", "Debuggers"],
+  "activationEvents": [
+    "onLanguage:xpscript",
+    "onDebug:xpscript",
+    "onCommand:xpscript.refreshApiIndex",
+    "onCommand:xpscript.checkForUpdates"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [{
@@ -23,6 +28,62 @@
       "language": "xpscript",
       "scopeName": "source.xpscript",
       "path": "./syntaxes/xpscript.tmLanguage.json"
+    }],
+    "debuggers": [{
+      "type": "xpscript",
+      "label": "XPscript Debugger",
+      "languages": ["xpscript"],
+      "configurationAttributes": {
+        "launch": {
+          "required": ["program"],
+          "properties": {
+            "program": {
+              "type": "string",
+              "description": "XPscript source file to launch."
+            },
+            "target": {
+              "type": "string",
+              "enum": ["cli", "desktop", "web", "wasm"],
+              "default": "cli",
+              "description": "Runtime target to debug."
+            },
+            "stopOnEntry": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "attach": {
+          "properties": {
+            "target": {
+              "type": "string",
+              "enum": ["desktop", "web", "wasm"],
+              "default": "web"
+            },
+            "host": {
+              "type": "string",
+              "default": "127.0.0.1"
+            },
+            "port": {
+              "type": "number"
+            },
+            "token": {
+              "type": "string",
+              "description": "Ephemeral debugger authentication token."
+            }
+          }
+        }
+      },
+      "initialConfigurations": [
+        {
+          "type": "xpscript",
+          "request": "launch",
+          "name": "Debug current XPscript file",
+          "program": "${file}",
+          "target": "cli",
+          "stopOnEntry": false
+        }
+      ]
     }],
     "commands": [
       { "command": "xpscript.refreshApiIndex", "title": "XPscript: Refresh API Index" },
