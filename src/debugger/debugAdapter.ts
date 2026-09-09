@@ -28,11 +28,14 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private currentSource = '';
   private currentLine = 1;
   private currentFrames: RuntimeStackFrame[] = [];
+  private currentException: RuntimeStoppedEvent | undefined;
   private config: XPScriptDebugConfig | undefined;
   private heldEntryStop = false;
+  private terminated = false;
   private nextVariableReference = 2000;
   private readonly historyReferences = new Map<number, string>();
   private readonly currentValues = new Map<string, RuntimeValueChange>();
+  private readonly debuggerVariableNames = new Set<string>();
 
   public readonly onDidSendMessage = this.emitter.event;
 
@@ -57,7 +60,12 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
           supportsEvaluateForHovers: true,
           supportsStepBack: false,
           supportsTerminateRequest: true,
-          supportsDataBreakpoints: true
+          supportsDataBreakpoints: true,
+          supportsExceptionInfoRequest: true,
+          exceptionBreakpointFilters: [
+            { filter: 'uncaught', label: 'Uncaught XPscript exceptions', default: true },
+            { filter: 'all', label: 'All XPscript exceptions', default: false }
+          ]
         });
         this.event('initialized');
         return;
@@ -73,8 +81,21 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         const source = request.arguments?.source?.path ?? '';
         const breakpoints = (request.arguments?.breakpoints ?? []) as Array<{ line: number }>;
         this.client?.setBreakpoints(source, breakpoints.map(item => item.line));
+        this.respond(request, { breakpoints: breakpoints.map(item => ({ verified: true, line: item.line, source: request.arguments?.source })) });
+        return;
+      }
+      case 'setExceptionBreakpoints': {
+        const filters = ((request.arguments?.filters ?? []) as string[]).filter(value => value === 'all' || value === 'uncaught');
+        this.client?.setExceptionBreakpoints(filters);
+        this.respond(request);
+        return;
+      }
+      case 'exceptionInfo': {
+        const exception = this.currentException;
         this.respond(request, {
-          breakpoints: breakpoints.map(item => ({ verified: true, line: item.line, source: request.arguments?.source }))
+          exceptionId: exception?.exceptionId ?? 'XPscript exception',
+          description: exception?.description ?? 'XPscript exception',
+          breakMode: exception?.breakMode ?? 'unhandled'
         });
         return;
       }
@@ -83,34 +104,20 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         await this.refreshCurrentValues();
         const observed = this.currentValues.get(name.toLowerCase());
         if (!name || !observed) {
-          this.respond(request, {
-            dataId: null,
-            description: name ? `${name} is not an observed XPscript scalar value.` : 'No XPscript variable selected.',
-            canPersist: false
-          });
+          this.respond(request, { dataId: null, description: name ? `${name} is not an observed XPscript value.` : 'No XPscript variable selected.', canPersist: false });
           return;
         }
-        this.respond(request, {
-          dataId: observed.Name,
-          description: `Break when ${observed.Name} changes`,
-          accessTypes: ['write'],
-          canPersist: true
-        });
+        this.respond(request, { dataId: observed.Name, description: `Break when ${observed.Name} changes`, accessTypes: ['write'], canPersist: true });
         return;
       }
       case 'setDataBreakpoints': {
         const requested = (request.arguments?.breakpoints ?? []) as Array<{ dataId?: string; accessType?: string }>;
-        const names = requested
-          .filter(item => !item.accessType || item.accessType === 'write')
-          .map(item => String(item.dataId ?? '').trim())
-          .filter(Boolean);
+        const names = requested.filter(item => !item.accessType || item.accessType === 'write').map(item => String(item.dataId ?? '').trim()).filter(Boolean);
         this.client?.setDataBreakpoints(names);
         this.respond(request, {
           breakpoints: requested.map(item => ({
             verified: Boolean(item.dataId) && (!item.accessType || item.accessType === 'write'),
-            message: item.accessType && item.accessType !== 'write'
-              ? 'XPscript currently supports data breakpoints on writes only.'
-              : undefined
+            message: item.accessType && item.accessType !== 'write' ? 'XPscript currently supports data breakpoints on writes only.' : undefined
           }))
         });
         return;
@@ -126,9 +133,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         this.respond(request, { threads: [{ id: 1, name: 'XPscript main' }] });
         return;
       case 'stackTrace': {
-        const frames = this.currentFrames.length > 0
-          ? this.currentFrames
-          : [{ id: 1, name: 'XPscript', source: this.currentSource, line: this.currentLine, column: 1 }];
+        const frames = this.currentFrames.length > 0 ? this.currentFrames : [{ id: 1, name: 'XPscript', source: this.currentSource, line: this.currentLine, column: 1 }];
         this.respond(request, {
           stackFrames: frames.map(frame => ({
             id: frame.id,
@@ -145,6 +150,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         this.respond(request, {
           scopes: [
             { name: 'Locals', variablesReference: 1000, expensive: false },
+            { name: 'Debugger Variables', variablesReference: 1002, expensive: false },
             { name: 'Runtime', variablesReference: 1001, expensive: false }
           ]
         });
@@ -153,46 +159,45 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         const reference = request.arguments?.variablesReference;
         if (reference === 1000) {
           await this.refreshCurrentValues();
+          await this.refreshDebuggerVariableNames();
           const variables = [...this.currentValues.values()]
+            .filter(item => !this.debuggerVariableNames.has(item.Name.toLowerCase()))
             .sort((a, b) => a.Name.localeCompare(b.Name, undefined, { sensitivity: 'base' }))
-            .map(item => ({
-              name: item.Name,
-              value: item.NewValue,
-              type: 'observed',
-              variablesReference: this.historyReference(item.Name),
-              evaluateName: item.Name
-            }));
+            .map(item => ({ name: item.Name, value: item.NewValue, type: 'observed scalar', variablesReference: this.historyReference(item.Name), evaluateName: item.Name }));
+          this.respond(request, { variables });
+          return;
+        }
+        if (reference === 1002) {
+          const response = await this.client?.debuggerVariables();
+          const variables = (response?.items ?? [])
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+            .map(item => ({ name: item.name, value: item.value, type: 'Debugger.UpdateVar', variablesReference: this.historyReference(item.name), evaluateName: item.name }));
           this.respond(request, { variables });
           return;
         }
         if (reference === 1001) {
-          this.respond(request, {
-            variables: [
-              { name: 'Source', value: this.currentSource || '<unknown>', variablesReference: 0 },
-              { name: 'Line', value: String(this.currentLine), variablesReference: 0 },
-              { name: 'Target', value: this.config?.target ?? 'cli', variablesReference: 0 },
-              { name: 'Call depth', value: String(this.currentFrames.length || 1), variablesReference: 0 }
-            ]
-          });
+          this.respond(request, { variables: [
+            { name: 'Source', value: this.currentSource || '<unknown>', variablesReference: 0 },
+            { name: 'Line', value: String(this.currentLine), variablesReference: 0 },
+            { name: 'Target', value: this.config?.target ?? 'cli', variablesReference: 0 },
+            { name: 'Call depth', value: String(this.currentFrames.length || 1), variablesReference: 0 }
+          ] });
           return;
         }
-
         const historyName = this.historyReferences.get(reference);
         if (historyName) {
           const response = await this.client?.valueHistory(historyName);
           const items = (response?.items ?? []).slice().reverse();
-          this.respond(request, {
-            variables: items.map((item, index) => ({
-              name: `#${items.length - index} ${this.fileName(item.Source)}:${item.Line}`,
-              value: `${item.OldValue} -> ${item.NewValue}`,
-              type: item.Procedure,
-              variablesReference: 0,
-              presentationHint: { kind: 'data', attributes: ['readOnly'] }
-            }))
-          });
+          this.respond(request, { variables: items.map((item, index) => ({
+            name: `#${items.length - index} ${this.fileName(item.Source)}:${item.Line}`,
+            value: `${item.OldValue} -> ${item.NewValue}`,
+            type: item.Procedure,
+            variablesReference: 0,
+            presentationHint: { kind: 'data', attributes: ['readOnly'] }
+          })) });
           return;
         }
-
         this.respond(request, { variables: [] });
         return;
       }
@@ -203,94 +208,51 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
           const name = (history[1] ?? history[2] ?? '').trim();
           const response = await this.client?.valueHistory(name);
           const items = response?.items ?? [];
-          const result = items.length === 0
-            ? `No recorded value changes for ${name}.`
-            : items
-                .slice()
-                .reverse()
-                .map(item => `${this.fileName(item.Source)}:${item.Line} ${item.Procedure}: ${item.OldValue} -> ${item.NewValue}`)
-                .join('\n');
+          const result = items.length === 0 ? `No recorded value changes for ${name}.` : items.slice().reverse().map(item => `${this.fileName(item.Source)}:${item.Line} ${item.Procedure}: ${item.OldValue} -> ${item.NewValue}`).join('\n');
           this.respond(request, { result, variablesReference: 0 });
           return;
         }
-
         await this.refreshCurrentValues();
         const observed = this.currentValues.get(expression.toLowerCase());
         if (observed) {
-          this.respond(request, {
-            result: observed.NewValue,
-            variablesReference: this.historyReference(observed.Name)
-          });
+          this.respond(request, { result: observed.NewValue, variablesReference: this.historyReference(observed.Name) });
           return;
         }
-
-        this.respond(request, {
-          result: `No observed value for ${expression}. Use history(variable) for tracked changes.`,
-          variablesReference: 0
-        });
+        this.respond(request, { result: `No observed value for ${expression}. Use history(variable) for tracked changes.`, variablesReference: 0 });
         return;
       }
-      case 'continue':
-        this.client?.continue();
-        this.respond(request, { allThreadsContinued: true });
-        return;
-      case 'next':
-        this.client?.next();
-        this.respond(request);
-        return;
-      case 'stepIn':
-        this.client?.stepIn();
-        this.respond(request);
-        return;
-      case 'stepOut':
-        this.client?.stepOut();
-        this.respond(request);
-        return;
-      case 'pause':
-        this.client?.pause();
-        this.respond(request);
-        return;
+      case 'continue': this.client?.continue(); this.respond(request, { allThreadsContinued: true }); return;
+      case 'next': this.client?.next(); this.respond(request); return;
+      case 'stepIn': this.client?.stepIn(); this.respond(request); return;
+      case 'stepOut': this.client?.stepOut(); this.respond(request); return;
+      case 'pause': this.client?.pause(); this.respond(request); return;
       case 'disconnect':
       case 'terminate':
         this.client?.disconnect();
         this.process?.kill();
         this.respond(request);
-        this.event('terminated');
+        this.terminateOnce();
         return;
-      default:
-        this.respond(request);
+      default: this.respond(request);
     }
   }
 
   private async launch(config: XPScriptDebugConfig): Promise<void> {
     this.config = config;
     if (!config.program) throw new Error('XPscript debug launch requires a program.');
-    if (config.target === 'web' || config.target === 'wasm')
-      throw new Error(`Use attach debugging for XPscript ${config.target} targets.`);
-
+    if (config.target === 'web' || config.target === 'wasm') throw new Error(`Use attach debugging for XPscript ${config.target} targets.`);
     const port = config.port ?? await this.findPort();
     const token = config.token ?? randomBytes(24).toString('hex');
     const executable = config.executable || vscode.workspace.getConfiguration('xpscript').get<string>('debugExecutable') || 'xpscript';
     const args = ['run', config.program, ...(config.args ?? [])];
-    const env = {
-      ...process.env,
-      XPSCRIPT_DEBUG_PORT: String(port),
-      XPSCRIPT_DEBUG_TOKEN: token,
-      XPSCRIPT_DEBUG_STOP_ON_ENTRY: '1'
-    };
-
-    this.process = spawn(executable, args, {
-      cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-      env,
-      stdio: ['ignore', 'pipe', 'pipe']
-    });
+    const env = { ...process.env, XPSCRIPT_DEBUG_PORT: String(port), XPSCRIPT_DEBUG_TOKEN: token, XPSCRIPT_DEBUG_STOP_ON_ENTRY: '1' };
+    this.process = spawn(executable, args, { cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath, env, stdio: ['ignore', 'pipe', 'pipe'] });
     this.process.stdout?.on('data', data => this.event('output', { category: 'stdout', output: data.toString() }));
     this.process.stderr?.on('data', data => this.event('output', { category: 'stderr', output: data.toString() }));
     this.process.on('exit', code => {
       this.event('output', { category: 'console', output: `XPscript process exited with code ${code ?? 0}.\n` });
-      this.event('terminated');
+      this.terminateOnce();
     });
-
     await this.connect(config.host ?? '127.0.0.1', port, token);
   }
 
@@ -303,27 +265,21 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private async connect(host: string, port: number, token: string): Promise<void> {
     const client = new XPScriptRuntimeClient(token);
     client.onEvent(event => {
-      if (event.type === 'stopped') {
-        this.handleStopped(event as RuntimeStoppedEvent);
-        return;
-      }
+      if (event.type === 'stopped') { this.handleStopped(event as RuntimeStoppedEvent); return; }
       if (event.type === 'debugOutput') {
         const output = event as RuntimeMessage;
         const source = String(output.source ?? '');
         const line = Number(output.line ?? 0);
         const prefix = source && line > 0 ? `${this.fileName(source)}:${line} ` : '';
-        this.event('output', {
-          category: 'console',
-          output: prefix + String(output.output ?? '') + '\n',
-          source: source ? { name: this.fileName(source), path: source } : undefined,
-          line: line > 0 ? line : undefined
-        });
+        this.event('output', { category: 'console', output: prefix + String(output.output ?? '') + '\n', source: source ? { name: this.fileName(source), path: source } : undefined, line: line > 0 ? line : undefined });
         return;
       }
       if (event.type === 'error') {
         const runtimeError = event as RuntimeMessage;
         this.event('output', { category: 'stderr', output: String(runtimeError.message ?? 'Debugger runtime error') + '\n' });
+        return;
       }
+      if (event.type === 'disconnected') this.terminateOnce();
     });
     await client.connect(host, port);
     this.client = client;
@@ -333,20 +289,16 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
     this.currentSource = event.source;
     this.currentLine = event.line;
     this.currentFrames = event.frames ?? [];
+    this.currentException = event.reason === 'exception' ? event : undefined;
     this.currentValues.clear();
+    this.debuggerVariableNames.clear();
     this.historyReferences.clear();
     this.nextVariableReference = 2000;
     if (event.reason === 'entry' && this.config?.request === 'launch' && this.config.stopOnEntry === false) {
       this.heldEntryStop = true;
       return;
     }
-    this.event('stopped', {
-      reason: event.reason,
-      threadId: event.threadId || 1,
-      allThreadsStopped: true,
-      description: event.description,
-      text: event.description
-    });
+    this.event('stopped', { reason: event.reason, threadId: event.threadId || 1, allThreadsStopped: true, description: event.description, text: event.description });
   }
 
   private async refreshCurrentValues(): Promise<void> {
@@ -360,35 +312,31 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
     }
   }
 
+  private async refreshDebuggerVariableNames(): Promise<void> {
+    const response = await this.client?.debuggerVariables();
+    this.debuggerVariableNames.clear();
+    for (const item of response?.items ?? []) this.debuggerVariableNames.add(item.name.toLowerCase());
+  }
+
   private historyReference(name: string): number {
-    for (const [reference, existing] of this.historyReferences) {
-      if (existing.toLowerCase() === name.toLowerCase()) return reference;
-    }
+    for (const [reference, existing] of this.historyReferences) if (existing.toLowerCase() === name.toLowerCase()) return reference;
     const reference = this.nextVariableReference++;
     this.historyReferences.set(reference, name);
     return reference;
   }
 
+  private terminateOnce(): void {
+    if (this.terminated) return;
+    this.terminated = true;
+    this.event('terminated');
+  }
+
   private respond(request: any, body?: any, success = true, message?: string): void {
-    this.emitter.fire({
-      seq: this.sequence++,
-      type: 'response',
-      request_seq: request.seq,
-      command: request.command,
-      success,
-      message,
-      body
-    });
+    this.emitter.fire({ seq: this.sequence++, type: 'response', request_seq: request.seq, command: request.command, success, message, body });
   }
 
-  private event(event: string, body?: any): void {
-    this.emitter.fire({ seq: this.sequence++, type: 'event', event, body });
-  }
-
-  private fileName(path: string): string {
-    const normalized = path.replace(/\\/g, '/');
-    return normalized.slice(normalized.lastIndexOf('/') + 1);
-  }
+  private event(event: string, body?: any): void { this.emitter.fire({ seq: this.sequence++, type: 'event', event, body }); }
+  private fileName(path: string): string { const normalized = path.replace(/\\/g, '/'); return normalized.slice(normalized.lastIndexOf('/') + 1); }
 
   private async findPort(): Promise<number> {
     const net = await import('net');
@@ -397,11 +345,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
       server.once('error', reject);
       server.listen(0, '127.0.0.1', () => {
         const address = server.address();
-        if (!address || typeof address === 'string') {
-          server.close();
-          reject(new Error('Unable to allocate debugger port.'));
-          return;
-        }
+        if (!address || typeof address === 'string') { server.close(); reject(new Error('Unable to allocate debugger port.')); return; }
         const port = address.port;
         server.close(error => error ? reject(error) : resolve(port));
       });
