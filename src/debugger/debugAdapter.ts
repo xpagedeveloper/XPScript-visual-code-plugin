@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { spawn, ChildProcess } from 'child_process';
 import { randomBytes } from 'crypto';
-import { XPScriptRuntimeClient, RuntimeStoppedEvent } from './runtimeClient';
+import { XPScriptRuntimeClient, RuntimeStoppedEvent, RuntimeMessage } from './runtimeClient';
 
 interface XPScriptDebugConfig extends vscode.DebugConfiguration {
   program?: string;
@@ -22,6 +22,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private currentSource = '';
   private currentLine = 1;
   private config: XPScriptDebugConfig | undefined;
+  private heldEntryStop = false;
 
   public readonly onDidSendMessage = this.emitter.event;
 
@@ -68,6 +69,10 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
       }
       case 'configurationDone':
         this.respond(request);
+        if (this.heldEntryStop) {
+          this.heldEntryStop = false;
+          this.client?.continue();
+        }
         return;
       case 'threads':
         this.respond(request, { threads: [{ id: 1, name: 'XPscript main' }] });
@@ -150,7 +155,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
       ...process.env,
       XPSCRIPT_DEBUG_PORT: String(port),
       XPSCRIPT_DEBUG_TOKEN: token,
-      XPSCRIPT_DEBUG_STOP_ON_ENTRY: config.stopOnEntry === false ? '0' : '1'
+      XPSCRIPT_DEBUG_STOP_ON_ENTRY: '1'
     };
 
     this.process = spawn(executable, args, {
@@ -177,8 +182,14 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private async connect(host: string, port: number, token: string): Promise<void> {
     const client = new XPScriptRuntimeClient(token);
     client.onEvent(event => {
-      if (event.type === 'stopped') this.handleStopped(event as RuntimeStoppedEvent);
-      else if (event.type === 'error') this.event('output', { category: 'stderr', output: String(event.message ?? 'Debugger runtime error') + '\n' });
+      if (event.type === 'stopped') {
+        this.handleStopped(event as RuntimeStoppedEvent);
+        return;
+      }
+      if (event.type === 'error') {
+        const runtimeError = event as RuntimeMessage;
+        this.event('output', { category: 'stderr', output: String(runtimeError.message ?? 'Debugger runtime error') + '\n' });
+      }
     });
     await client.connect(host, port);
     this.client = client;
@@ -187,6 +198,10 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private handleStopped(event: RuntimeStoppedEvent): void {
     this.currentSource = event.source;
     this.currentLine = event.line;
+    if (event.reason === 'entry' && this.config?.request === 'launch' && this.config.stopOnEntry === false) {
+      this.heldEntryStop = true;
+      return;
+    }
     this.event('stopped', { reason: event.reason, threadId: event.threadId || 1, allThreadsStopped: true });
   }
 
