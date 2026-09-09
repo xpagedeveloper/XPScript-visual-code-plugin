@@ -15,6 +15,7 @@ export interface ApiItem {
 }
 
 export const apiCatalog: ApiItem[] = [
+  { name:'IsDebugging', qualifiedName:'Application.IsDebugging', owner:'Application', kind:'property', syntax:'Application.IsDebugging', parameters:'', description:'Read-only Boolean. True when the application is running with the XPscript debugger runtime enabled; otherwise False.', returnType:'Boolean', writable:false, source:'docs/application-reference.md', section:'Application object' },
   { name:'Get', qualifiedName:'HttpClient.Get', owner:'HttpClient', kind:'function', syntax:'http.Get(url)', parameters:'url', description:'Sends a GET request and returns HttpResponse.', returnType:'HttpResponse', source:'docs/api-reference.md', section:'Native HTTP client' },
   { name:'Timeout', qualifiedName:'HttpClient.Timeout', owner:'HttpClient', kind:'property', syntax:'http.Timeout = seconds', parameters:'seconds', description:'Gets or sets total request timeout.', writable:true, source:'docs/api-reference.md', section:'Native HTTP client' },
   { name:'StatusCode', qualifiedName:'HttpResponse.StatusCode', owner:'HttpResponse', kind:'property', syntax:'response.StatusCode', parameters:'', description:'HTTP status code.', source:'docs/api-reference.md', section:'HTTP response' },
