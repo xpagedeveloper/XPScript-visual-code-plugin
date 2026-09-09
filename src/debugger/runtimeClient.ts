@@ -1,5 +1,7 @@
 import * as net from 'net';
 
+const SUPPORTED_PROTOCOL = 5;
+
 export interface RuntimeStackFrame {
   id: number;
   name: string;
@@ -21,12 +23,14 @@ export interface RuntimeValueChange {
 
 export interface RuntimeStoppedEvent {
   type: 'stopped';
-  reason: 'entry' | 'breakpoint' | 'step' | 'pause' | 'data breakpoint';
+  reason: 'entry' | 'breakpoint' | 'step' | 'pause' | 'data breakpoint' | 'exception';
   source: string;
   line: number;
   threadId: number;
   frames?: RuntimeStackFrame[];
   dataId?: string;
+  exceptionId?: string;
+  breakMode?: string;
   description?: string;
 }
 
@@ -36,18 +40,31 @@ export interface RuntimeValueHistoryEvent {
   items: RuntimeValueChange[];
 }
 
+export interface RuntimeDebuggerVariable {
+  name: string;
+  value: string;
+}
+
+export interface RuntimeDebuggerVariablesEvent {
+  type: 'debuggerVariables';
+  items: RuntimeDebuggerVariable[];
+}
+
 export interface RuntimeMessage {
   type: string;
   [key: string]: unknown;
 }
 
-export type RuntimeEvent = RuntimeStoppedEvent | RuntimeValueHistoryEvent | RuntimeMessage;
+export type RuntimeEvent = RuntimeStoppedEvent | RuntimeValueHistoryEvent | RuntimeDebuggerVariablesEvent | RuntimeMessage;
 
 export class XPScriptRuntimeClient {
   private socket: net.Socket | undefined;
   private buffer = '';
   private readonly listeners = new Set<(event: RuntimeEvent) => void>();
   private readonly historyWaiters: Array<(event: RuntimeValueHistoryEvent) => void> = [];
+  private readonly debuggerVariableWaiters: Array<(event: RuntimeDebuggerVariablesEvent) => void> = [];
+  private helloResolve: (() => void) | undefined;
+  private helloReject: ((error: Error) => void) | undefined;
 
   constructor(private readonly token = '') {}
 
@@ -59,42 +76,38 @@ export class XPScriptRuntimeClient {
   public async connect(host: string, port: number, timeoutMs = 10000): Promise<void> {
     const deadline = Date.now() + timeoutMs;
     let lastError: unknown;
-
     while (Date.now() < deadline) {
       try {
-        await this.connectOnce(host, port);
+        await this.connectOnce(host, port, Math.max(250, deadline - Date.now()));
         return;
       } catch (error) {
         lastError = error;
+        this.dispose();
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
-
     throw lastError instanceof Error ? lastError : new Error(`Unable to connect to XPscript debugger at ${host}:${port}.`);
   }
 
-  public setBreakpoints(source: string, lines: number[]): void {
-    this.send({ command: 'setBreakpoints', source, lines });
-  }
-
-  public setDataBreakpoints(names: string[]): void {
-    this.send({ command: 'setDataBreakpoints', names });
-  }
+  public setBreakpoints(source: string, lines: number[]): void { this.send({ command: 'setBreakpoints', source, lines }); }
+  public setDataBreakpoints(names: string[]): void { this.send({ command: 'setDataBreakpoints', names }); }
+  public setExceptionBreakpoints(filters: string[]): void { this.send({ command: 'setExceptionBreakpoints', filters }); }
 
   public async valueHistory(name = ''): Promise<RuntimeValueHistoryEvent> {
     return new Promise<RuntimeValueHistoryEvent>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('XPscript value history request timed out.')), 3000);
-      this.historyWaiters.push(event => {
-        clearTimeout(timer);
-        resolve(event);
-      });
-      try {
-        this.send({ command: 'valueHistory', name });
-      } catch (error) {
-        clearTimeout(timer);
-        this.historyWaiters.pop();
-        reject(error);
-      }
+      this.historyWaiters.push(event => { clearTimeout(timer); resolve(event); });
+      try { this.send({ command: 'valueHistory', name }); }
+      catch (error) { clearTimeout(timer); this.historyWaiters.pop(); reject(error); }
+    });
+  }
+
+  public async debuggerVariables(): Promise<RuntimeDebuggerVariablesEvent> {
+    return new Promise<RuntimeDebuggerVariablesEvent>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('XPscript debugger variables request timed out.')), 3000);
+      this.debuggerVariableWaiters.push(event => { clearTimeout(timer); resolve(event); });
+      try { this.send({ command: 'debuggerVariables' }); }
+      catch (error) { clearTimeout(timer); this.debuggerVariableWaiters.pop(); reject(error); }
     });
   }
 
@@ -103,28 +116,36 @@ export class XPScriptRuntimeClient {
   public stepIn(): void { this.send({ command: 'stepIn' }); }
   public stepOut(): void { this.send({ command: 'stepOut' }); }
   public pause(): void { this.send({ command: 'pause' }); }
-  public disconnect(): void { this.send({ command: 'disconnect' }); this.dispose(); }
+  public disconnect(): void {
+    try { this.send({ command: 'disconnect' }); } catch { }
+    this.dispose();
+  }
 
   public dispose(): void {
     this.socket?.destroy();
     this.socket = undefined;
   }
 
-  private async connectOnce(host: string, port: number): Promise<void> {
+  private async connectOnce(host: string, port: number, timeoutMs: number): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const socket = net.createConnection({ host, port });
-      const fail = (error: Error) => {
+      const timer = setTimeout(() => {
         socket.destroy();
-        reject(error);
-      };
+        reject(new Error(`XPscript debugger handshake timed out at ${host}:${port}.`));
+      }, timeoutMs);
+      const fail = (error: Error) => { clearTimeout(timer); socket.destroy(); reject(error); };
       socket.once('error', fail);
       socket.once('connect', () => {
         socket.off('error', fail);
-        socket.on('error', () => this.dispose());
-        socket.on('data', chunk => this.handleData(chunk.toString('utf8')));
-        socket.on('close', () => { if (this.socket === socket) this.socket = undefined; });
         this.socket = socket;
-        resolve();
+        this.helloResolve = () => { clearTimeout(timer); resolve(); };
+        this.helloReject = error => { clearTimeout(timer); reject(error); };
+        socket.on('error', error => this.emit({ type: 'error', message: error.message }));
+        socket.on('data', chunk => this.handleData(chunk.toString('utf8')));
+        socket.on('close', () => {
+          if (this.socket === socket) this.socket = undefined;
+          this.emit({ type: 'disconnected' });
+        });
       });
     });
   }
@@ -142,17 +163,35 @@ export class XPScriptRuntimeClient {
       if (newline < 0) return;
       const line = this.buffer.slice(0, newline).trim();
       this.buffer = this.buffer.slice(newline + 1);
-      if (line.length === 0) continue;
+      if (!line) continue;
       try {
         const event = JSON.parse(line) as RuntimeEvent;
-        if (event.type === 'valueHistory' && this.historyWaiters.length > 0) {
-          const waiter = this.historyWaiters.shift();
-          waiter?.(event as RuntimeValueHistoryEvent);
+        if (event.type === 'hello') {
+          const protocol = Number((event as RuntimeMessage).protocol ?? 0);
+          if (protocol !== SUPPORTED_PROTOCOL) {
+            const error = new Error(`XPscript debugger protocol mismatch. Extension supports ${SUPPORTED_PROTOCOL}, runtime reported ${protocol}.`);
+            this.helloReject?.(error);
+            this.helloResolve = undefined;
+            this.helloReject = undefined;
+            this.dispose();
+            continue;
+          }
+          this.helloResolve?.();
+          this.helloResolve = undefined;
+          this.helloReject = undefined;
         }
-        for (const listener of this.listeners) listener(event);
+        if (event.type === 'valueHistory' && this.historyWaiters.length > 0)
+          this.historyWaiters.shift()?.(event as RuntimeValueHistoryEvent);
+        if (event.type === 'debuggerVariables' && this.debuggerVariableWaiters.length > 0)
+          this.debuggerVariableWaiters.shift()?.(event as RuntimeDebuggerVariablesEvent);
+        this.emit(event);
       } catch {
         // Ignore malformed runtime frames and keep the debug channel alive.
       }
     }
+  }
+
+  private emit(event: RuntimeEvent): void {
+    for (const listener of this.listeners) listener(event);
   }
 }
