@@ -244,25 +244,27 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
     const port = config.port ?? await this.findPort();
     const token = config.token ?? randomBytes(24).toString('hex');
     const executable = config.executable || vscode.workspace.getConfiguration('xpscript').get<string>('debugExecutable') || 'xpscript';
-    const args = ['run', config.program, ...(config.args ?? [])];
+    const args = ['run', config.program, '--debug', ...(config.args ?? [])];
     const env = { ...process.env, XPSCRIPT_DEBUG_PORT: String(port), XPSCRIPT_DEBUG_TOKEN: token, XPSCRIPT_DEBUG_STOP_ON_ENTRY: '1' };
+    this.event('output', { category: 'console', output: `Starting XPscript debugger on 127.0.0.1:${port}. First launch may compile the script before the debugger port opens.\n` });
     this.process = spawn(executable, args, { cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath, env, stdio: ['ignore', 'pipe', 'pipe'] });
     this.process.stdout?.on('data', data => this.event('output', { category: 'stdout', output: data.toString() }));
     this.process.stderr?.on('data', data => this.event('output', { category: 'stderr', output: data.toString() }));
+    this.process.on('error', error => this.event('output', { category: 'stderr', output: `Unable to start XPscript executable: ${error.message}\n` }));
     this.process.on('exit', code => {
       this.event('output', { category: 'console', output: `XPscript process exited with code ${code ?? 0}.\n` });
       this.terminateOnce();
     });
-    await this.connect(config.host ?? '127.0.0.1', port, token);
+    await this.connect(config.host ?? '127.0.0.1', port, token, 60000);
   }
 
   private async attach(config: XPScriptDebugConfig): Promise<void> {
     this.config = config;
     if (!config.port) throw new Error('XPscript attach requires a port.');
-    await this.connect(config.host ?? '127.0.0.1', config.port, config.token ?? '');
+    await this.connect(config.host ?? '127.0.0.1', config.port, config.token ?? '', 10000);
   }
 
-  private async connect(host: string, port: number, token: string): Promise<void> {
+  private async connect(host: string, port: number, token: string, timeoutMs: number): Promise<void> {
     const client = new XPScriptRuntimeClient(token);
     client.onEvent(event => {
       if (event.type === 'stopped') { this.handleStopped(event as RuntimeStoppedEvent); return; }
@@ -281,7 +283,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
       }
       if (event.type === 'disconnected') this.terminateOnce();
     });
-    await client.connect(host, port);
+    await client.connect(host, port, timeoutMs);
     this.client = client;
   }
 
