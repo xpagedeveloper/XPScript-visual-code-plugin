@@ -21,11 +21,13 @@ export interface RuntimeValueChange {
 
 export interface RuntimeStoppedEvent {
   type: 'stopped';
-  reason: 'entry' | 'breakpoint' | 'step' | 'pause';
+  reason: 'entry' | 'breakpoint' | 'step' | 'pause' | 'data breakpoint';
   source: string;
   line: number;
   threadId: number;
   frames?: RuntimeStackFrame[];
+  dataId?: string;
+  description?: string;
 }
 
 export interface RuntimeValueHistoryEvent {
@@ -73,6 +75,10 @@ export class XPScriptRuntimeClient {
 
   public setBreakpoints(source: string, lines: number[]): void {
     this.send({ command: 'setBreakpoints', source, lines });
+  }
+
+  public setDataBreakpoints(names: string[]): void {
+    this.send({ command: 'setDataBreakpoints', names });
   }
 
   public async valueHistory(name = ''): Promise<RuntimeValueHistoryEvent> {
