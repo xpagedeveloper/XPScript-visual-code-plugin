@@ -1,11 +1,37 @@
 import * as net from 'net';
 
+export interface RuntimeStackFrame {
+  id: number;
+  name: string;
+  source: string;
+  line: number;
+  column: number;
+}
+
+export interface RuntimeValueChange {
+  Sequence: number;
+  Name: string;
+  OldValue: string;
+  NewValue: string;
+  Source: string;
+  Line: number;
+  Procedure: string;
+  TimestampUtc: string;
+}
+
 export interface RuntimeStoppedEvent {
   type: 'stopped';
   reason: 'entry' | 'breakpoint' | 'step' | 'pause';
   source: string;
   line: number;
   threadId: number;
+  frames?: RuntimeStackFrame[];
+}
+
+export interface RuntimeValueHistoryEvent {
+  type: 'valueHistory';
+  name: string;
+  items: RuntimeValueChange[];
 }
 
 export interface RuntimeMessage {
@@ -13,12 +39,13 @@ export interface RuntimeMessage {
   [key: string]: unknown;
 }
 
-export type RuntimeEvent = RuntimeStoppedEvent | RuntimeMessage;
+export type RuntimeEvent = RuntimeStoppedEvent | RuntimeValueHistoryEvent | RuntimeMessage;
 
 export class XPScriptRuntimeClient {
   private socket: net.Socket | undefined;
   private buffer = '';
   private readonly listeners = new Set<(event: RuntimeEvent) => void>();
+  private readonly historyWaiters: Array<(event: RuntimeValueHistoryEvent) => void> = [];
 
   constructor(private readonly token = '') {}
 
@@ -46,6 +73,23 @@ export class XPScriptRuntimeClient {
 
   public setBreakpoints(source: string, lines: number[]): void {
     this.send({ command: 'setBreakpoints', source, lines });
+  }
+
+  public async valueHistory(name = ''): Promise<RuntimeValueHistoryEvent> {
+    return new Promise<RuntimeValueHistoryEvent>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('XPscript value history request timed out.')), 3000);
+      this.historyWaiters.push(event => {
+        clearTimeout(timer);
+        resolve(event);
+      });
+      try {
+        this.send({ command: 'valueHistory', name });
+      } catch (error) {
+        clearTimeout(timer);
+        this.historyWaiters.pop();
+        reject(error);
+      }
+    });
   }
 
   public continue(): void { this.send({ command: 'continue' }); }
@@ -95,6 +139,10 @@ export class XPScriptRuntimeClient {
       if (line.length === 0) continue;
       try {
         const event = JSON.parse(line) as RuntimeEvent;
+        if (event.type === 'valueHistory' && this.historyWaiters.length > 0) {
+          const waiter = this.historyWaiters.shift();
+          waiter?.(event as RuntimeValueHistoryEvent);
+        }
         for (const listener of this.listeners) listener(event);
       } catch {
         // Ignore malformed runtime frames and keep the debug channel alive.
