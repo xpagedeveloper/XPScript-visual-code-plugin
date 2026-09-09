@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { getCompletions, getHover, getSignatureHelp } from './languageService';
 import { semanticTokensLegend, XPScriptSemanticTokensProvider } from './semanticTokens';
 import { checkForUpdates, scheduleAutomaticUpdateCheck } from './updater';
+import { XPScriptDebugConfigurationProvider } from './debugger/debugConfiguration';
 
 export function activate(context: vscode.ExtensionContext): void {
   const selector: vscode.DocumentSelector = { language: 'xpscript' };
@@ -34,7 +35,21 @@ export function activate(context: vscode.ExtensionContext): void {
     semanticTokensLegend
   );
 
-  context.subscriptions.push(refresh, checkUpdates, completions, hover, signatures, semanticTokens);
+  const debugConfiguration = vscode.debug.registerDebugConfigurationProvider(
+    'xpscript',
+    new XPScriptDebugConfigurationProvider()
+  );
+
+  context.subscriptions.push(
+    refresh,
+    checkUpdates,
+    completions,
+    hover,
+    signatures,
+    semanticTokens,
+    debugConfiguration
+  );
+
   scheduleAutomaticUpdateCheck(context);
 }
 
