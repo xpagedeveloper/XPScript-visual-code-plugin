@@ -10,12 +10,6 @@
   },
   "engines": { "vscode": "^1.95.0" },
   "categories": ["Programming Languages", "Debuggers"],
-  "activationEvents": [
-    "onLanguage:xpscript",
-    "onDebug:xpscript",
-    "onCommand:xpscript.refreshApiIndex",
-    "onCommand:xpscript.checkForUpdates"
-  ],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [{
@@ -37,100 +31,55 @@
         "launch": {
           "required": ["program"],
           "properties": {
-            "program": {
-              "type": "string",
-              "description": "XPscript source file to launch."
-            },
-            "target": {
-              "type": "string",
-              "enum": ["cli", "desktop", "web", "wasm"],
-              "default": "cli",
-              "description": "Runtime target to debug. Web and WASM currently use attach mode."
-            },
-            "stopOnEntry": {
-              "type": "boolean",
-              "default": false
-            },
-            "executable": {
-              "type": "string",
-              "description": "Optional XPscript CLI executable for this launch configuration."
-            },
-            "args": {
-              "type": "array",
-              "items": { "type": "string" },
-              "default": [],
-              "description": "Arguments appended after xpscript run <program>."
-            }
+            "program": { "type": "string", "description": "XPscript source file to launch." },
+            "target": { "type": "string", "enum": ["cli", "desktop", "web", "wasm"], "default": "cli", "description": "Runtime target to debug. Web and WASM currently use attach mode." },
+            "stopOnEntry": { "type": "boolean", "default": false },
+            "executable": { "type": "string", "description": "Optional XPscript CLI executable for this launch configuration." },
+            "args": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Arguments appended after xpscript run <program>." }
           }
         },
         "attach": {
           "required": ["port"],
           "properties": {
-            "target": {
-              "type": "string",
-              "enum": ["desktop", "web", "wasm"],
-              "default": "web"
-            },
-            "host": {
-              "type": "string",
-              "default": "127.0.0.1"
-            },
-            "port": {
-              "type": "number"
-            },
-            "token": {
-              "type": "string",
-              "description": "Ephemeral debugger authentication token."
-            }
+            "target": { "type": "string", "enum": ["desktop", "web", "wasm"], "default": "web" },
+            "host": { "type": "string", "default": "127.0.0.1" },
+            "port": { "type": "number" },
+            "token": { "type": "string", "description": "Ephemeral debugger authentication token." }
           }
         }
       },
       "initialConfigurations": [
-        {
-          "type": "xpscript",
-          "request": "launch",
-          "name": "Debug current XPscript file",
-          "program": "${file}",
-          "target": "cli",
-          "stopOnEntry": false
-        },
-        {
-          "type": "xpscript",
-          "request": "attach",
-          "name": "Attach to XPscript web/desktop runtime",
-          "target": "web",
-          "host": "127.0.0.1",
-          "port": 4711
-        }
+        { "type": "xpscript", "request": "launch", "name": "Debug current XPscript file", "program": "${file}", "target": "cli", "stopOnEntry": false },
+        { "type": "xpscript", "request": "attach", "name": "Attach to XPscript web/desktop runtime", "target": "web", "host": "127.0.0.1", "port": 4711 }
       ]
     }],
     "commands": [
+      { "command": "xpscript.debugCurrentFile", "title": "XPscript: Debug Current File", "icon": "$(debug-alt)" },
+      { "command": "xpscript.runCurrentFile", "title": "XPscript: Run Current File", "icon": "$(play)" },
       { "command": "xpscript.refreshApiIndex", "title": "XPscript: Refresh API Index" },
       { "command": "xpscript.checkForUpdates", "title": "XPscript: Check for Updates" }
+    ],
+    "menus": {
+      "editor/title/run": [
+        { "command": "xpscript.runCurrentFile", "when": "resourceLangId == xpscript", "group": "navigation@1" },
+        { "command": "xpscript.debugCurrentFile", "when": "resourceLangId == xpscript", "group": "navigation@2" }
+      ],
+      "editor/context": [
+        { "command": "xpscript.runCurrentFile", "when": "resourceLangId == xpscript", "group": "xpscript@1" },
+        { "command": "xpscript.debugCurrentFile", "when": "resourceLangId == xpscript", "group": "xpscript@2" }
+      ]
+    },
+    "keybindings": [
+      { "command": "xpscript.debugCurrentFile", "key": "f5", "when": "editorTextFocus && resourceLangId == xpscript && !inDebugMode" },
+      { "command": "xpscript.runCurrentFile", "key": "ctrl+f5", "mac": "cmd+f5", "when": "editorTextFocus && resourceLangId == xpscript && !inDebugMode" }
     ],
     "configuration": {
       "title": "XPscript",
       "properties": {
-        "xpscript.runtimeRepoPath": {
-          "type": "string",
-          "default": "",
-          "description": "Absolute path to a local checkout of the XPscript repository."
-        },
-        "xpscript.indexWorkspace": {
-          "type": "boolean",
-          "default": true,
-          "description": "Index XPscript declarations in the current workspace."
-        },
-        "xpscript.autoUpdate": {
-          "type": "boolean",
-          "default": true,
-          "description": "Check GitHub Releases for a newer XPscript extension when the extension starts. Installation always requires explicit approval."
-        },
-        "xpscript.debugExecutable": {
-          "type": "string",
-          "default": "xpscript",
-          "description": "XPscript CLI executable used by debugger launch configurations."
-        }
+        "xpscript.runtimeRepoPath": { "type": "string", "default": "", "description": "Absolute path to a local checkout of the XPscript repository." },
+        "xpscript.indexWorkspace": { "type": "boolean", "default": true, "description": "Index XPscript declarations in the current workspace." },
+        "xpscript.autoUpdate": { "type": "boolean", "default": true, "description": "Check GitHub Releases for a newer XPscript extension when the extension starts. Installation always requires explicit approval." },
+        "xpscript.debugExecutable": { "type": "string", "default": "xpscript", "description": "XPscript CLI executable used by debugger launch configurations." }
       }
     }
   },
