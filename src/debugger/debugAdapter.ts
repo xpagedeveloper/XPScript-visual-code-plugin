@@ -5,7 +5,8 @@ import {
   XPScriptRuntimeClient,
   RuntimeStoppedEvent,
   RuntimeMessage,
-  RuntimeStackFrame
+  RuntimeStackFrame,
+  RuntimeValueChange
 } from './runtimeClient';
 
 interface XPScriptDebugConfig extends vscode.DebugConfiguration {
@@ -29,6 +30,9 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private currentFrames: RuntimeStackFrame[] = [];
   private config: XPScriptDebugConfig | undefined;
   private heldEntryStop = false;
+  private nextVariableReference = 2000;
+  private readonly historyReferences = new Map<number, string>();
+  private readonly currentValues = new Map<string, RuntimeValueChange>();
 
   public readonly onDidSendMessage = this.emitter.event;
 
@@ -50,7 +54,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         this.respond(request, {
           supportsConfigurationDoneRequest: true,
           supportsConditionalBreakpoints: false,
-          supportsEvaluateForHovers: false,
+          supportsEvaluateForHovers: true,
           supportsStepBack: false,
           supportsTerminateRequest: true
         });
@@ -109,38 +113,83 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         return;
       case 'variables': {
         const reference = request.arguments?.variablesReference;
-        const variables = reference === 1001
-          ? [
+        if (reference === 1000) {
+          await this.refreshCurrentValues();
+          const variables = [...this.currentValues.values()]
+            .sort((a, b) => a.Name.localeCompare(b.Name, undefined, { sensitivity: 'base' }))
+            .map(item => ({
+              name: item.Name,
+              value: item.NewValue,
+              type: 'observed',
+              variablesReference: this.historyReference(item.Name),
+              evaluateName: item.Name
+            }));
+          this.respond(request, { variables });
+          return;
+        }
+        if (reference === 1001) {
+          this.respond(request, {
+            variables: [
               { name: 'Source', value: this.currentSource || '<unknown>', variablesReference: 0 },
               { name: 'Line', value: String(this.currentLine), variablesReference: 0 },
               { name: 'Target', value: this.config?.target ?? 'cli', variablesReference: 0 },
               { name: 'Call depth', value: String(this.currentFrames.length || 1), variablesReference: 0 }
             ]
-          : [];
-        this.respond(request, { variables });
+          });
+          return;
+        }
+
+        const historyName = this.historyReferences.get(reference);
+        if (historyName) {
+          const response = await this.client?.valueHistory(historyName);
+          const items = (response?.items ?? []).slice().reverse();
+          this.respond(request, {
+            variables: items.map((item, index) => ({
+              name: `#${items.length - index} ${this.fileName(item.Source)}:${item.Line}`,
+              value: `${item.OldValue} -> ${item.NewValue}`,
+              type: item.Procedure,
+              variablesReference: 0,
+              presentationHint: { kind: 'data', attributes: ['readOnly'] }
+            }))
+          });
+          return;
+        }
+
+        this.respond(request, { variables: [] });
         return;
       }
       case 'evaluate': {
         const expression = String(request.arguments?.expression ?? '').trim();
         const history = /^@?history(?:\(([^)]+)\)|\s+(.+))$/i.exec(expression);
-        if (!history) {
+        if (history) {
+          const name = (history[1] ?? history[2] ?? '').trim();
+          const response = await this.client?.valueHistory(name);
+          const items = response?.items ?? [];
+          const result = items.length === 0
+            ? `No recorded value changes for ${name}.`
+            : items
+                .slice()
+                .reverse()
+                .map(item => `${this.fileName(item.Source)}:${item.Line} ${item.Procedure}: ${item.OldValue} -> ${item.NewValue}`)
+                .join('\n');
+          this.respond(request, { result, variablesReference: 0 });
+          return;
+        }
+
+        await this.refreshCurrentValues();
+        const observed = this.currentValues.get(expression.toLowerCase());
+        if (observed) {
           this.respond(request, {
-            result: 'Use history(variable) or @history variable to inspect the last value changes.',
-            variablesReference: 0
+            result: observed.NewValue,
+            variablesReference: this.historyReference(observed.Name)
           });
           return;
         }
-        const name = (history[1] ?? history[2] ?? '').trim();
-        const response = await this.client?.valueHistory(name);
-        const items = response?.items ?? [];
-        const result = items.length === 0
-          ? `No recorded value changes for ${name}.`
-          : items
-              .slice()
-              .reverse()
-              .map(item => `${this.fileName(item.Source)}:${item.Line} ${item.Procedure}: ${item.OldValue} -> ${item.NewValue}`)
-              .join('\n');
-        this.respond(request, { result, variablesReference: 0 });
+
+        this.respond(request, {
+          result: `No observed value for ${expression}. Use history(variable) for tracked changes.`,
+          variablesReference: 0
+        });
         return;
       }
       case 'continue':
@@ -233,11 +282,34 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
     this.currentSource = event.source;
     this.currentLine = event.line;
     this.currentFrames = event.frames ?? [];
+    this.currentValues.clear();
+    this.historyReferences.clear();
+    this.nextVariableReference = 2000;
     if (event.reason === 'entry' && this.config?.request === 'launch' && this.config.stopOnEntry === false) {
       this.heldEntryStop = true;
       return;
     }
     this.event('stopped', { reason: event.reason, threadId: event.threadId || 1, allThreadsStopped: true });
+  }
+
+  private async refreshCurrentValues(): Promise<void> {
+    const response = await this.client?.valueHistory('');
+    const items = response?.items ?? [];
+    this.currentValues.clear();
+    for (const item of items) {
+      const key = item.Name.toLowerCase();
+      const current = this.currentValues.get(key);
+      if (!current || item.Sequence > current.Sequence) this.currentValues.set(key, item);
+    }
+  }
+
+  private historyReference(name: string): number {
+    for (const [reference, existing] of this.historyReferences) {
+      if (existing.toLowerCase() === name.toLowerCase()) return reference;
+    }
+    const reference = this.nextVariableReference++;
+    this.historyReferences.set(reference, name);
+    return reference;
   }
 
   private respond(request: any, body?: any, success = true, message?: string): void {
