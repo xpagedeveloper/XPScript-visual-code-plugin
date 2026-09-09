@@ -8,7 +8,12 @@ export interface RuntimeStoppedEvent {
   threadId: number;
 }
 
-export type RuntimeEvent = RuntimeStoppedEvent | Record<string, unknown>;
+export interface RuntimeMessage {
+  type: string;
+  [key: string]: unknown;
+}
+
+export type RuntimeEvent = RuntimeStoppedEvent | RuntimeMessage;
 
 export class XPScriptRuntimeClient {
   private socket: net.Socket | undefined;
@@ -17,7 +22,7 @@ export class XPScriptRuntimeClient {
 
   constructor(private readonly token = '') {}
 
-  public onEvent(listener: (event: RuntimeEvent) => void): vscode.DisposableLike {
+  public onEvent(listener: (event: RuntimeEvent) => void): { dispose(): void } {
     this.listeners.add(listener);
     return { dispose: () => this.listeners.delete(listener) };
   }
@@ -96,8 +101,4 @@ export class XPScriptRuntimeClient {
       }
     }
   }
-}
-
-namespace vscode {
-  export interface DisposableLike { dispose(): void; }
 }
