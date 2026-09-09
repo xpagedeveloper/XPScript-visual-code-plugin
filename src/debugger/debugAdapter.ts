@@ -1,7 +1,12 @@
 import * as vscode from 'vscode';
 import { spawn, ChildProcess } from 'child_process';
 import { randomBytes } from 'crypto';
-import { XPScriptRuntimeClient, RuntimeStoppedEvent, RuntimeMessage } from './runtimeClient';
+import {
+  XPScriptRuntimeClient,
+  RuntimeStoppedEvent,
+  RuntimeMessage,
+  RuntimeStackFrame
+} from './runtimeClient';
 
 interface XPScriptDebugConfig extends vscode.DebugConfiguration {
   program?: string;
@@ -21,6 +26,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private process: ChildProcess | undefined;
   private currentSource = '';
   private currentLine = 1;
+  private currentFrames: RuntimeStackFrame[] = [];
   private config: XPScriptDebugConfig | undefined;
   private heldEntryStop = false;
 
@@ -77,18 +83,22 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
       case 'threads':
         this.respond(request, { threads: [{ id: 1, name: 'XPscript main' }] });
         return;
-      case 'stackTrace':
+      case 'stackTrace': {
+        const frames = this.currentFrames.length > 0
+          ? this.currentFrames
+          : [{ id: 1, name: 'XPscript', source: this.currentSource, line: this.currentLine, column: 1 }];
         this.respond(request, {
-          stackFrames: [{
-            id: 1,
-            name: 'XPscript',
-            line: this.currentLine,
-            column: 1,
-            source: this.currentSource ? { name: this.fileName(this.currentSource), path: this.currentSource } : undefined
-          }],
-          totalFrames: 1
+          stackFrames: frames.map(frame => ({
+            id: frame.id,
+            name: frame.name,
+            line: frame.line,
+            column: frame.column || 1,
+            source: frame.source ? { name: this.fileName(frame.source), path: frame.source } : undefined
+          })),
+          totalFrames: frames.length
         });
         return;
+      }
       case 'scopes':
         this.respond(request, {
           scopes: [
@@ -103,10 +113,34 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
           ? [
               { name: 'Source', value: this.currentSource || '<unknown>', variablesReference: 0 },
               { name: 'Line', value: String(this.currentLine), variablesReference: 0 },
-              { name: 'Target', value: this.config?.target ?? 'cli', variablesReference: 0 }
+              { name: 'Target', value: this.config?.target ?? 'cli', variablesReference: 0 },
+              { name: 'Call depth', value: String(this.currentFrames.length || 1), variablesReference: 0 }
             ]
           : [];
         this.respond(request, { variables });
+        return;
+      }
+      case 'evaluate': {
+        const expression = String(request.arguments?.expression ?? '').trim();
+        const history = /^@?history(?:\(([^)]+)\)|\s+(.+))$/i.exec(expression);
+        if (!history) {
+          this.respond(request, {
+            result: 'Use history(variable) or @history variable to inspect the last value changes.',
+            variablesReference: 0
+          });
+          return;
+        }
+        const name = (history[1] ?? history[2] ?? '').trim();
+        const response = await this.client?.valueHistory(name);
+        const items = response?.items ?? [];
+        const result = items.length === 0
+          ? `No recorded value changes for ${name}.`
+          : items
+              .slice()
+              .reverse()
+              .map(item => `${this.fileName(item.Source)}:${item.Line} ${item.Procedure}: ${item.OldValue} -> ${item.NewValue}`)
+              .join('\n');
+        this.respond(request, { result, variablesReference: 0 });
         return;
       }
       case 'continue':
@@ -198,6 +232,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private handleStopped(event: RuntimeStoppedEvent): void {
     this.currentSource = event.source;
     this.currentLine = event.line;
+    this.currentFrames = event.frames ?? [];
     if (event.reason === 'entry' && this.config?.request === 'launch' && this.config.stopOnEntry === false) {
       this.heldEntryStop = true;
       return;
