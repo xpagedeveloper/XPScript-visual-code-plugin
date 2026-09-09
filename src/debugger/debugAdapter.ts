@@ -56,7 +56,8 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
           supportsConditionalBreakpoints: false,
           supportsEvaluateForHovers: true,
           supportsStepBack: false,
-          supportsTerminateRequest: true
+          supportsTerminateRequest: true,
+          supportsDataBreakpoints: true
         });
         this.event('initialized');
         return;
@@ -74,6 +75,43 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         this.client?.setBreakpoints(source, breakpoints.map(item => item.line));
         this.respond(request, {
           breakpoints: breakpoints.map(item => ({ verified: true, line: item.line, source: request.arguments?.source }))
+        });
+        return;
+      }
+      case 'dataBreakpointInfo': {
+        const name = String(request.arguments?.name ?? '').trim();
+        await this.refreshCurrentValues();
+        const observed = this.currentValues.get(name.toLowerCase());
+        if (!name || !observed) {
+          this.respond(request, {
+            dataId: null,
+            description: name ? `${name} is not an observed XPscript scalar value.` : 'No XPscript variable selected.',
+            canPersist: false
+          });
+          return;
+        }
+        this.respond(request, {
+          dataId: observed.Name,
+          description: `Break when ${observed.Name} changes`,
+          accessTypes: ['write'],
+          canPersist: true
+        });
+        return;
+      }
+      case 'setDataBreakpoints': {
+        const requested = (request.arguments?.breakpoints ?? []) as Array<{ dataId?: string; accessType?: string }>;
+        const names = requested
+          .filter(item => !item.accessType || item.accessType === 'write')
+          .map(item => String(item.dataId ?? '').trim())
+          .filter(Boolean);
+        this.client?.setDataBreakpoints(names);
+        this.respond(request, {
+          breakpoints: requested.map(item => ({
+            verified: Boolean(item.dataId) && (!item.accessType || item.accessType === 'write'),
+            message: item.accessType && item.accessType !== 'write'
+              ? 'XPscript currently supports data breakpoints on writes only.'
+              : undefined
+          }))
         });
         return;
       }
@@ -289,7 +327,13 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
       this.heldEntryStop = true;
       return;
     }
-    this.event('stopped', { reason: event.reason, threadId: event.threadId || 1, allThreadsStopped: true });
+    this.event('stopped', {
+      reason: event.reason,
+      threadId: event.threadId || 1,
+      allThreadsStopped: true,
+      description: event.description,
+      text: event.description
+    });
   }
 
   private async refreshCurrentValues(): Promise<void> {
