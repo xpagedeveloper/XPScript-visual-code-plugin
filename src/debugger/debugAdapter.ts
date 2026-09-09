@@ -307,6 +307,19 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         this.handleStopped(event as RuntimeStoppedEvent);
         return;
       }
+      if (event.type === 'debugOutput') {
+        const output = event as RuntimeMessage;
+        const source = String(output.source ?? '');
+        const line = Number(output.line ?? 0);
+        const prefix = source && line > 0 ? `${this.fileName(source)}:${line} ` : '';
+        this.event('output', {
+          category: 'console',
+          output: prefix + String(output.output ?? '') + '\n',
+          source: source ? { name: this.fileName(source), path: source } : undefined,
+          line: line > 0 ? line : undefined
+        });
+        return;
+      }
       if (event.type === 'error') {
         const runtimeError = event as RuntimeMessage;
         this.event('output', { category: 'stderr', output: String(runtimeError.message ?? 'Debugger runtime error') + '\n' });
