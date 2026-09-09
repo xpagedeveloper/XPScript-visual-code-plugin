@@ -1,9 +1,61 @@
 import * as vscode from 'vscode';
+import { execFile } from 'child_process';
 import { getCompletions, getHover, getSignatureHelp } from './languageService';
 import { semanticTokensLegend, XPScriptSemanticTokensProvider } from './semanticTokens';
 import { checkForUpdates, scheduleAutomaticUpdateCheck } from './updater';
 import { XPScriptDebugConfigurationProvider } from './debugger/debugConfiguration';
 import { XPScriptDebugAdapterDescriptorFactory } from './debugger/debugAdapter';
+
+function canStartExecutable(executable: string): Promise<boolean> {
+  return new Promise(resolve => {
+    execFile(executable, ['--help'], { windowsHide: true, timeout: 5000 }, error => resolve(!error));
+  });
+}
+
+async function resolveXPScriptExecutable(): Promise<string | undefined> {
+  const configuration = vscode.workspace.getConfiguration('xpscript');
+  const configured = configuration.get<string>('debugExecutable')?.trim() ?? '';
+
+  if (configured) {
+    if (await canStartExecutable(configured)) return configured;
+    const choice = await vscode.window.showWarningMessage(
+      `The configured XPscript executable could not be started: ${configured}`,
+      'Choose xpscript executable',
+      'Cancel'
+    );
+    if (choice !== 'Choose xpscript executable') return undefined;
+  } else if (await canStartExecutable('xpscript')) {
+    return 'xpscript';
+  }
+
+  if (!configured) {
+    const choice = await vscode.window.showInformationMessage(
+      'XPscript was not found in PATH. Choose the XPscript executable once and the extension will remember it.',
+      'Choose xpscript executable',
+      'Cancel'
+    );
+    if (choice !== 'Choose xpscript executable') return undefined;
+  }
+
+  const selected = await vscode.window.showOpenDialog({
+    title: 'Choose XPscript executable',
+    canSelectFiles: true,
+    canSelectFolders: false,
+    canSelectMany: false,
+    openLabel: 'Use XPscript executable',
+    filters: process.platform === 'win32' ? { 'XPscript executable': ['exe'] } : undefined
+  });
+  const executable = selected?.[0]?.fsPath;
+  if (!executable) return undefined;
+
+  if (!(await canStartExecutable(executable))) {
+    await vscode.window.showErrorMessage(`The selected file could not be started as XPscript: ${executable}`);
+    return undefined;
+  }
+
+  await configuration.update('debugExecutable', executable, vscode.ConfigurationTarget.Global);
+  return executable;
+}
 
 async function startCurrentFile(noDebug: boolean): Promise<void> {
   const editor = vscode.window.activeTextEditor;
@@ -17,9 +69,13 @@ async function startCurrentFile(noDebug: boolean): Promise<void> {
     return;
   }
 
-  if (editor.document.isDirty) {
-    await editor.document.save();
+  if (editor.document.isDirty && !(await editor.document.save())) {
+    await vscode.window.showErrorMessage('The XPscript source file could not be saved.');
+    return;
   }
+
+  const executable = await resolveXPScriptExecutable();
+  if (!executable) return;
 
   const configuration: vscode.DebugConfiguration = {
     type: 'xpscript',
@@ -28,6 +84,7 @@ async function startCurrentFile(noDebug: boolean): Promise<void> {
     program: editor.document.uri.fsPath,
     target: 'cli',
     stopOnEntry: false,
+    executable,
     noDebug
   };
 
