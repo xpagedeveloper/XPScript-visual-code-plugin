@@ -12,33 +12,13 @@ function canStartExecutable(executable: string): Promise<boolean> {
   });
 }
 
-async function resolveXPScriptExecutable(): Promise<string | undefined> {
+async function selectXPScriptExecutable(): Promise<string | undefined> {
   const configuration = vscode.workspace.getConfiguration('xpscript');
   const configured = configuration.get<string>('debugExecutable')?.trim() ?? '';
-
-  if (configured) {
-    if (await canStartExecutable(configured)) return configured;
-    const choice = await vscode.window.showWarningMessage(
-      `The configured XPscript executable could not be started: ${configured}`,
-      'Choose xpscript executable',
-      'Cancel'
-    );
-    if (choice !== 'Choose xpscript executable') return undefined;
-  } else if (await canStartExecutable('xpscript')) {
-    return 'xpscript';
-  }
-
-  if (!configured) {
-    const choice = await vscode.window.showInformationMessage(
-      'XPscript was not found in PATH. Choose the XPscript executable once and the extension will remember it.',
-      'Choose xpscript executable',
-      'Cancel'
-    );
-    if (choice !== 'Choose xpscript executable') return undefined;
-  }
-
+  const defaultUri = configured ? vscode.Uri.file(configured) : undefined;
   const selected = await vscode.window.showOpenDialog({
     title: 'Choose XPscript executable',
+    defaultUri,
     canSelectFiles: true,
     canSelectFolders: false,
     canSelectMany: false,
@@ -54,7 +34,34 @@ async function resolveXPScriptExecutable(): Promise<string | undefined> {
   }
 
   await configuration.update('debugExecutable', executable, vscode.ConfigurationTarget.Global);
+  await vscode.window.showInformationMessage(`XPscript executable set to: ${executable}`);
   return executable;
+}
+
+async function resolveXPScriptExecutable(): Promise<string | undefined> {
+  const configuration = vscode.workspace.getConfiguration('xpscript');
+  const configured = configuration.get<string>('debugExecutable')?.trim() ?? '';
+
+  if (configured) {
+    if (await canStartExecutable(configured)) return configured;
+    const choice = await vscode.window.showWarningMessage(
+      `The configured XPscript executable could not be started: ${configured}`,
+      'Choose xpscript executable',
+      'Cancel'
+    );
+    if (choice !== 'Choose xpscript executable') return undefined;
+    return selectXPScriptExecutable();
+  }
+
+  if (await canStartExecutable('xpscript')) return 'xpscript';
+
+  const choice = await vscode.window.showInformationMessage(
+    'XPscript was not found in PATH. Choose the XPscript executable once and the extension will remember it.',
+    'Choose xpscript executable',
+    'Cancel'
+  );
+  if (choice !== 'Choose xpscript executable') return undefined;
+  return selectXPScriptExecutable();
 }
 
 async function startCurrentFile(noDebug: boolean): Promise<void> {
@@ -106,6 +113,14 @@ export function activate(context: vscode.ExtensionContext): void {
     await checkForUpdates(context, true);
   });
 
+  const selectExecutable = vscode.commands.registerCommand('xpscript.selectExecutable', async () => {
+    await selectXPScriptExecutable();
+  });
+
+  const openSettings = vscode.commands.registerCommand('xpscript.openSettings', async () => {
+    await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:xpagedeveloper.xpscript');
+  });
+
   const debugCurrentFile = vscode.commands.registerCommand('xpscript.debugCurrentFile', async () => {
     await startCurrentFile(false);
   });
@@ -147,6 +162,8 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     refresh,
     checkUpdates,
+    selectExecutable,
+    openSettings,
     debugCurrentFile,
     runCurrentFile,
     completions,
