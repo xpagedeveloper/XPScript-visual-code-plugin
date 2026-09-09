@@ -79,7 +79,7 @@
         "xpscript.runtimeRepoPath": { "type": "string", "default": "", "description": "Absolute path to a local checkout of the XPscript repository." },
         "xpscript.indexWorkspace": { "type": "boolean", "default": true, "description": "Index XPscript declarations in the current workspace." },
         "xpscript.autoUpdate": { "type": "boolean", "default": true, "description": "Check GitHub Releases for a newer XPscript extension when the extension starts. Installation always requires explicit approval." },
-        "xpscript.debugExecutable": { "type": "string", "default": "xpscript", "description": "XPscript CLI executable used by debugger launch configurations." }
+        "xpscript.debugExecutable": { "type": "string", "default": "", "description": "XPscript CLI executable used for run and debug. Leave empty to use xpscript from PATH; if it is not found, the extension asks you to choose the executable and remembers the selection." }
       }
     }
   },
