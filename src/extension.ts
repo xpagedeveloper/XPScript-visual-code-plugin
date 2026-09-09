@@ -3,6 +3,7 @@ import { getCompletions, getHover, getSignatureHelp } from './languageService';
 import { semanticTokensLegend, XPScriptSemanticTokensProvider } from './semanticTokens';
 import { checkForUpdates, scheduleAutomaticUpdateCheck } from './updater';
 import { XPScriptDebugConfigurationProvider } from './debugger/debugConfiguration';
+import { XPScriptDebugAdapterDescriptorFactory } from './debugger/debugAdapter';
 
 export function activate(context: vscode.ExtensionContext): void {
   const selector: vscode.DocumentSelector = { language: 'xpscript' };
@@ -40,6 +41,11 @@ export function activate(context: vscode.ExtensionContext): void {
     new XPScriptDebugConfigurationProvider()
   );
 
+  const debugAdapter = vscode.debug.registerDebugAdapterDescriptorFactory(
+    'xpscript',
+    new XPScriptDebugAdapterDescriptorFactory()
+  );
+
   context.subscriptions.push(
     refresh,
     checkUpdates,
@@ -47,7 +53,8 @@ export function activate(context: vscode.ExtensionContext): void {
     hover,
     signatures,
     semanticTokens,
-    debugConfiguration
+    debugConfiguration,
+    debugAdapter
   );
 
   scheduleAutomaticUpdateCheck(context);
