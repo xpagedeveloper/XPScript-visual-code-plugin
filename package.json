@@ -45,15 +45,26 @@
               "type": "string",
               "enum": ["cli", "desktop", "web", "wasm"],
               "default": "cli",
-              "description": "Runtime target to debug."
+              "description": "Runtime target to debug. Web and WASM currently use attach mode."
             },
             "stopOnEntry": {
               "type": "boolean",
               "default": false
+            },
+            "executable": {
+              "type": "string",
+              "description": "Optional XPscript CLI executable for this launch configuration."
+            },
+            "args": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [],
+              "description": "Arguments appended after xpscript run <program>."
             }
           }
         },
         "attach": {
+          "required": ["port"],
           "properties": {
             "target": {
               "type": "string",
@@ -82,6 +93,14 @@
           "program": "${file}",
           "target": "cli",
           "stopOnEntry": false
+        },
+        {
+          "type": "xpscript",
+          "request": "attach",
+          "name": "Attach to XPscript web/desktop runtime",
+          "target": "web",
+          "host": "127.0.0.1",
+          "port": 4711
         }
       ]
     }],
@@ -106,6 +125,11 @@
           "type": "boolean",
           "default": true,
           "description": "Check GitHub Releases for a newer XPscript extension when the extension starts. Installation always requires explicit approval."
+        },
+        "xpscript.debugExecutable": {
+          "type": "string",
+          "default": "xpscript",
+          "description": "XPscript CLI executable used by debugger launch configurations."
         }
       }
     }
