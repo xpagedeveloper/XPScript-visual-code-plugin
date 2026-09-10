@@ -127,13 +127,17 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
     }
 
     if (nonSource.length > 0) {
+      const warning = `XPscript warning: ${nonSource.length} non-line breakpoint(s) will be ignored${nonSource.length ? ` (${nonSource.join(', ')})` : ''}. To create a line breakpoint, click the gutter next to the XPscript line. For a condition, right-click the red breakpoint and choose Edit Breakpoint > Expression.\n`;
       this.emitter.fire({
         seq: 0,
         type: 'event',
         event: 'output',
         body: {
-          category: 'console',
-          output: `XPscript warning: ${nonSource.length} non-line breakpoint(s) will be ignored${nonSource.length ? ` (${nonSource.join(', ')})` : ''}. To create a line breakpoint, click the gutter next to the XPscript line. For a condition, right-click the red breakpoint and choose Edit Breakpoint > Expression.\n`
+          category: 'stderr',
+          output: warning,
+          source: this.programPath ? { name: path.basename(this.programPath), path: this.programPath } : undefined,
+          line: this.programPath ? 1 : undefined,
+          column: this.programPath ? 1 : undefined
         }
       });
     }
