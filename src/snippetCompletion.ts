@@ -19,7 +19,6 @@ export function provideSnippetCompletions(
 
   return snippetCatalog.map(snippet => {
     const item = new vscode.CompletionItem(snippet.name, vscode.CompletionItemKind.Snippet);
-    item.detail = snippet.description;
     item.documentation = new vscode.MarkdownString(snippet.description);
     item.insertText = new vscode.SnippetString(snippet.body);
     item.range = replaceRange;
