@@ -15,17 +15,15 @@ The extension provides:
 
 ## Typeahead / IntelliSense
 
-XPscript typeahead is generated from the XPscript documentation when the extension is built. The generated catalog is packaged inside the VSIX, so normal users do not need a local checkout of the XPscript repository.
+XPscript typeahead is generated from the canonical XPscript documentation. The generated catalog is packaged inside the VSIX, so normal users do not need a local checkout of the XPscript repository.
 
-Typeahead includes documented global functions, classes, methods, properties, constants and parameters. Recent APIs that are not represented by the generic documentation tables are added during the catalog build so they can still appear in completion, hover and signature help.
+Native Notes/Domino members are synchronized from `XPscript/docs/notes-c-api.md`. That file is the canonical documentation source for `NotesSession`, `NotesDatabase`, `NotesView`, `NotesDocument`, `NotesItem`, `NotesName`, `NotesDateTime`, `NotesAgent`, and related native Notes objects. MIME-specific members are sourced from `docs/notes-mime-entity.md`.
 
-Examples include:
+The plugin repository also runs an hourly upstream synchronization workflow. It checks out the current `xpagedeveloper/XPscript` `main` branch, regenerates the IntelliSense catalog, and compares the generated files with the committed plugin catalog. When the catalog changes, the workflow increments the plugin patch version and pushes the synchronized files. The normal release workflow then produces a new VSIX automatically.
 
-- `Console` and its input/output, cursor and color APIs
-- `Debugger.Print` and `Debugger.UpdateVar`
-- `Application.Executable` metadata
-- `NotesDBDirectory`
-- `ArraySort`
+This removes the previous requirement to remember a manual plugin rebuild every time the XPscript API documentation changes.
+
+Typeahead includes documented global functions, classes, methods, properties, constants and parameters. APIs that are intentionally documented in prose-only topical pages may still use small catalog augmenters, but native Notes/Domino members that are represented by `docs/notes-c-api.md` must not be duplicated in those augmenters.
 
 Member completion is available after typing a dot. For example:
 
@@ -37,7 +35,7 @@ Application.Executable.
 
 The extension can also index declarations in the current workspace when **XPscript: Index Workspace** is enabled. This allows your own XPscript classes, functions, variables and members to participate in typeahead together with the built-in API catalog.
 
-If a newly documented XPscript API does not appear in typeahead, the extension itself must be rebuilt so the generated catalog is refreshed. Normal users should install the newest VSIX rather than configure a local XPscript repository path.
+If a newly documented API still does not appear after the next synchronized plugin release, treat that as a catalog-generation defect rather than adding another hard-coded copy of the Notes API.
 
 ## Install
 
@@ -48,7 +46,7 @@ Open the repository's **Releases** page on GitHub and download the `.vsix` file 
 The release asset is named similar to:
 
 ```text
-xpscript-0.2.23.vsix
+xpscript-0.2.25.vsix
 ```
 
 ### 2. Install in Visual Studio Code
@@ -72,13 +70,13 @@ Extensions: Install from VSIX...
 If the `code` command is available in your shell:
 
 ```bash
-code --install-extension xpscript-0.2.23.vsix
+code --install-extension xpscript-0.2.25.vsix
 ```
 
 To install or replace an existing version without a confirmation prompt:
 
 ```bash
-code --install-extension xpscript-0.2.23.vsix --force
+code --install-extension xpscript-0.2.25.vsix --force
 ```
 
 ## `.xps` files
@@ -144,4 +142,4 @@ code --uninstall-extension xpagedeveloper.xpscript
 
 ## Maintainer documentation
 
-Build, deployment and release instructions are documented in [`scripts/Build.md`](scripts/Build.md).
+Build, deployment, upstream synchronization and release instructions are documented in [`scripts/Build.md`](scripts/Build.md).
