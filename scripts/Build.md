@@ -37,6 +37,16 @@ Example:
 XPSCRIPT_REPO_PATH=/path/to/XPscript npm run package
 ```
 
+## Automatic synchronization from XPscript
+
+`.github/workflows/sync-xpscript-api.yml` runs hourly and can also be started manually. It checks out the current `xpagedeveloper/XPscript` `main` branch, regenerates `src/generated/apiCatalog.ts` and `src/generated/parameterHelp.ts`, and compares them with the committed plugin catalog.
+
+If the generated catalog changed, the workflow increments the plugin patch version, commits the generated files, and pushes to plugin `main`. That push triggers the normal release workflow, which packages and publishes a fresh VSIX. If the generated files are unchanged, no commit or release is created.
+
+Native Notes/Domino IntelliSense is synchronized from `XPscript/docs/notes-c-api.md`. Do not add duplicate hard-coded NotesName/NotesDateTime/NotesDocument/NotesView entries to `augment-recent-api.mjs`; those copies previously drifted from the canonical documentation. MIME members that remain prose-oriented are still augmented from `docs/notes-mime-entity.md` until that page is fully represented by machine-readable reference tables.
+
+The Notes reference synchronizer rejects malformed property/method rows that contain more than one public member name. Keep one public member per row in `docs/notes-c-api.md` so completion, hover and signature metadata stay deterministic.
+
 ## Continuous integration build
 
 `.github/workflows/publish.yml` runs for pushes and pull requests against `main`.
@@ -63,7 +73,7 @@ Example:
 "version": "0.2.0"
 ```
 
-Before publishing a new version, update `package.json`, commit the change, and merge it to `main`.
+For intentional plugin-code releases, update `package.json`, commit the change, and merge it to `main`. Upstream XPscript API-only changes normally receive an automatic patch-version bump from the synchronization workflow.
 
 Use semantic versioning for releases:
 
