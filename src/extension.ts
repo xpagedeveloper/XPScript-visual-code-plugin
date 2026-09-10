@@ -7,6 +7,12 @@ import { checkForUpdates, scheduleAutomaticUpdateCheck } from './updater';
 import { XPScriptDebugConfigurationProvider } from './debugger/debugConfiguration';
 import { XPScriptDebugAdapterDescriptorFactory } from './debugger/debugAdapterBootstrap';
 import {
+  addCurrentSourceLaunchConfiguration,
+  createOrOpenWorkspaceLaunchConfiguration,
+  ensureLaunchConfigurationForEditor,
+  ensureWorkspaceLaunchConfiguration
+} from './debugger/launchConfiguration';
+import {
   applyBreakpointChanges,
   seedBreakpointRegistry,
   snapshotRegisteredBreakpoints
@@ -74,6 +80,7 @@ async function startCurrentFile(noDebug: boolean): Promise<void> {
     await vscode.window.showErrorMessage('The XPscript source file could not be saved.');
     return;
   }
+  await ensureWorkspaceLaunchConfiguration(editor.document);
   const executable = await resolveXPScriptExecutable();
   if (!executable) return;
   const configuration: vscode.DebugConfiguration = {
@@ -271,10 +278,14 @@ export function activate(context: vscode.ExtensionContext): void {
   const openSettings = vscode.commands.registerCommand('xpscript.openSettings', async () => vscode.commands.executeCommand('workbench.action.openSettings', '@ext:xpagedeveloper.xpscript'));
   const debugCurrentFile = vscode.commands.registerCommand('xpscript.debugCurrentFile', async () => startCurrentFile(false));
   const runCurrentFile = vscode.commands.registerCommand('xpscript.runCurrentFile', async () => startCurrentFile(true));
+  const createLaunch = vscode.commands.registerCommand('xpscript.createLaunchConfiguration', createOrOpenWorkspaceLaunchConfiguration);
+  const addSourceLaunch = vscode.commands.registerCommand('xpscript.addSourceLaunchConfiguration', addCurrentSourceLaunchConfiguration);
   const quickActions = vscode.commands.registerCommand('xpscript.quickActions', async () => {
     const pick = await vscode.window.showQuickPick([
       { label: '$(debug-alt) Debug Current File', command: 'xpscript.debugCurrentFile' },
       { label: '$(play) Run Current File', command: 'xpscript.runCurrentFile' },
+      { label: '$(json) Create/Open Workspace launch.json', command: 'xpscript.createLaunchConfiguration' },
+      { label: '$(add) Add Launch Config for Current File', command: 'xpscript.addSourceLaunchConfiguration' },
       { label: '$(file-binary) Select XPscript Executable', command: 'xpscript.selectExecutable' },
       { label: '$(gear) XPscript Settings', command: 'xpscript.openSettings' }
     ], { placeHolder: 'XPscript' });
@@ -300,7 +311,15 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
-  const activeEditor = vscode.window.onDidChangeActiveTextEditor(updateStatus);
+  const activeEditor = vscode.window.onDidChangeActiveTextEditor(editor => {
+    updateStatus();
+    ensureLaunchConfigurationForEditor(editor);
+  });
+  const openedDocument = vscode.workspace.onDidOpenTextDocument(document => {
+    void ensureWorkspaceLaunchConfiguration(document).catch(error => {
+      console.warn('XPscript could not create workspace launch.json:', error);
+    });
+  });
   const startSession = vscode.debug.onDidStartDebugSession(session => {
     if (session.type !== 'xpscript') return;
     diagnostics.clear();
@@ -337,6 +356,8 @@ export function activate(context: vscode.ExtensionContext): void {
     openSettings,
     debugCurrentFile,
     runCurrentFile,
+    createLaunch,
+    addSourceLaunch,
     quickActions,
     completions,
     hover,
@@ -346,6 +367,7 @@ export function activate(context: vscode.ExtensionContext): void {
     debugAdapter,
     tracker,
     activeEditor,
+    openedDocument,
     startSession,
     stopSession,
     changedBreakpoints,
@@ -353,6 +375,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   updateStatus();
+  ensureLaunchConfigurationForEditor(vscode.window.activeTextEditor);
   scheduleAutomaticUpdateCheck(context);
 }
 
