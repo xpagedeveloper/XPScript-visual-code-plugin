@@ -2,7 +2,14 @@ import * as vscode from 'vscode';
 import { spawn, ChildProcess } from 'child_process';
 import { randomBytes } from 'crypto';
 import * as path from 'path';
-import { XPScriptRuntimeClient, RuntimeStoppedEvent, RuntimeMessage, RuntimeStackFrame, RuntimeValueChange } from './runtimeClient';
+import {
+  XPScriptRuntimeClient,
+  RuntimeStoppedEvent,
+  RuntimeMessage,
+  RuntimeStackFrame,
+  RuntimeValueChange,
+  RuntimeBreakpoint
+} from './runtimeClient';
 
 interface XPScriptDebugConfig extends vscode.DebugConfiguration {
   program?: string;
@@ -16,20 +23,9 @@ interface XPScriptDebugConfig extends vscode.DebugConfiguration {
   noDebug?: boolean;
 }
 
-interface ConditionalBreakpointResult {
-  matched: boolean;
-  error?: string;
-}
-
 interface PendingBreakpointSet {
   source: string;
-  lines: number[];
-}
-
-interface BreakpointBehavior {
-  condition?: string;
-  hitCondition?: string;
-  logMessage?: string;
+  breakpoints: RuntimeBreakpoint[];
 }
 
 export class XPScriptDebugAdapter implements vscode.DebugAdapter {
@@ -52,8 +48,6 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private readonly historyReferences = new Map<number, string>();
   private readonly currentValues = new Map<string, RuntimeValueChange>();
   private readonly debuggerVariableNames = new Set<string>();
-  private readonly breakpointBehaviors = new Map<string, BreakpointBehavior>();
-  private readonly breakpointHitCounts = new Map<string, number>();
   private readonly breakpointSets = new Map<string, PendingBreakpointSet>();
 
   public readonly onDidSendMessage = this.emitter.event;
@@ -111,50 +105,41 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         }>;
 
         const executableLines = this.executableLines(source);
-        const resolved = requested.map(item => this.resolveBreakpointLine(item.line, executableLines));
-        this.clearBreakpointBehaviorForSource(source);
+        const runtimeBreakpoints: RuntimeBreakpoint[] = requested.map(item => ({
+          line: this.resolveBreakpointLine(item.line, executableLines),
+          condition: String(item.condition ?? '').trim() || undefined,
+          hitCondition: String(item.hitCondition ?? '').trim() || undefined,
+          logMessage: String(item.logMessage ?? '').trim() || undefined
+        }));
 
-        requested.forEach((item, index) => {
-          const line = resolved[index];
-          if (line <= 0) return;
+        this.breakpointSets.set(this.breakpointSourceKey(source), { source, breakpoints: runtimeBreakpoints });
+        this.client?.setBreakpoints(source, runtimeBreakpoints);
 
-          const condition = String(item.condition ?? '').trim();
-          const hitCondition = String(item.hitCondition ?? '').trim();
-          const logMessage = String(item.logMessage ?? '').trim();
-          const key = this.breakpointKey(source, line);
-
-          if (condition || hitCondition || logMessage) {
-            this.breakpointBehaviors.set(key, {
-              condition: condition || undefined,
-              hitCondition: hitCondition || undefined,
-              logMessage: logMessage || undefined
-            });
-          }
-
-          if (condition) {
-            this.event('output', {
-              category: 'console',
-              output: `Conditional breakpoint ${this.fileName(source)}:${line}: ${condition}\n`
-            });
-          }
-        });
-
-        this.breakpointSets.set(this.breakpointSourceKey(source), { source, lines: resolved });
-        this.client?.setBreakpoints(source, resolved);
+        for (const breakpoint of runtimeBreakpoints) {
+          const behavior = breakpoint.condition
+            ? ` condition=${breakpoint.condition}`
+            : breakpoint.hitCondition
+              ? ` hitCount=${breakpoint.hitCondition}`
+              : breakpoint.logMessage
+                ? ` logMessage=${breakpoint.logMessage}`
+                : '';
+          this.event('output', {
+            category: 'console',
+            output: `XPscript breakpoint ${this.fileName(source)}:${breakpoint.line}${behavior}\n`
+          });
+        }
 
         this.respond(request, {
           breakpoints: requested.map((item, index) => {
-            const line = resolved[index] || item.line;
+            const line = runtimeBreakpoints[index]?.line || item.line;
             const sourceInfo = request.arguments?.source
               ? { ...request.arguments.source, name: `${this.fileName(source)}:${line}` }
               : undefined;
             return {
-              verified: resolved[index] > 0,
+              verified: line > 0,
               line,
               source: sourceInfo,
-              message: resolved[index] !== item.line
-                ? `Moved to executable XPscript line ${resolved[index]}.`
-                : undefined
+              message: line !== item.line ? `Moved to executable XPscript line ${line}.` : undefined
             };
           })
         });
@@ -389,7 +374,6 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
     this.config = config;
     this.processExited = false;
     this.socketDisconnected = false;
-
     if (!config.program) throw new Error('XPscript launch requires a program.');
     if (config.target === 'web' || config.target === 'wasm')
       throw new Error(`Use attach debugging for XPscript ${config.target} targets.`);
@@ -399,10 +383,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
       || 'xpscript';
 
     if (config.noDebug) {
-      this.event('output', {
-        category: 'console',
-        output: `Running ${this.fileName(config.program)} without debugger.\n`
-      });
+      this.event('output', { category: 'console', output: `Running ${this.fileName(config.program)} without debugger.\n` });
       await this.spawnProcess(executable, ['run', config.program, ...(config.args ?? [])], process.env);
       return;
     }
@@ -419,7 +400,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
 
     this.event('output', {
       category: 'console',
-      output: `Starting XPscript debugger on 127.0.0.1:${port}. First launch may compile the script before the debugger port opens.\n`
+      output: `Starting XPscript debugger protocol v6 on 127.0.0.1:${port}.\n`
     });
 
     const started = this.spawnProcess(executable, args, env);
@@ -428,7 +409,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
     } catch (error) {
       this.process?.kill();
       const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`XPscript started but the debugger could not connect. ${message} Check that this xpscript executable supports the debugger, then choose another executable in XPscript settings or retry.`);
+      throw new Error(`XPscript started but the debugger could not connect. ${message}`);
     }
   }
 
@@ -441,29 +422,16 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         stdio: ['ignore', 'pipe', 'pipe']
       });
       this.process = child;
-
       child.stdout?.on('data', data => this.event('output', { category: 'stdout', output: data.toString() }));
       child.stderr?.on('data', data => this.event('output', { category: 'stderr', output: data.toString() }));
-
-      child.once('spawn', () => {
-        settled = true;
-        resolve();
-      });
-
+      child.once('spawn', () => { settled = true; resolve(); });
       child.once('error', error => {
-        this.event('output', {
-          category: 'stderr',
-          output: `Unable to start XPscript executable: ${error.message}\n`
-        });
+        this.event('output', { category: 'stderr', output: `Unable to start XPscript executable: ${error.message}\n` });
         if (!settled) reject(new Error(`Unable to start XPscript executable: ${error.message}`));
       });
-
       child.on('exit', code => {
         this.processExited = true;
-        this.event('output', {
-          category: 'console',
-          output: `XPscript process exited with code ${code ?? 0}. Draining debugger output...\n`
-        });
+        this.event('output', { category: 'console', output: `XPscript process exited with code ${code ?? 0}.\n` });
         this.scheduleTerminationAfterDrain();
       });
     });
@@ -481,10 +449,9 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
     const client = new XPScriptRuntimeClient(token);
     client.onEvent(event => {
       if (event.type === 'stopped') {
-        void this.handleStopped(event as RuntimeStoppedEvent);
+        this.handleStopped(event as RuntimeStoppedEvent);
         return;
       }
-
       if (event.type === 'debugOutput') {
         const output = event as RuntimeMessage;
         const source = String(output.source ?? '');
@@ -500,44 +467,38 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         void vscode.commands.executeCommand('workbench.debug.action.focusRepl');
         return;
       }
-
-      if (event.type === 'error') {
-        const runtimeError = event as RuntimeMessage;
-        this.event('output', {
-          category: 'stderr',
-          output: String(runtimeError.message ?? 'Debugger runtime error') + '\n'
-        });
+      if (event.type === 'breakpointDiagnostic') {
+        const info = event as RuntimeMessage;
+        this.event('output', { category: 'console', output: String(info.message ?? '') + '\n' });
         return;
       }
-
+      if (event.type === 'error') {
+        const runtimeError = event as RuntimeMessage;
+        this.event('output', { category: 'stderr', output: String(runtimeError.message ?? 'Debugger runtime error') + '\n' });
+        return;
+      }
+      if (event.type === 'complete') {
+        this.event('output', { category: 'console', output: 'XPscript debugger runtime completed.\n' });
+        return;
+      }
       if (event.type === 'disconnected') {
         this.socketDisconnected = true;
-        if (!this.processExited && this.config?.request === 'launch') {
-          this.event('output', {
-            category: 'console',
-            output: 'XPscript debugger transport closed.\n'
-          });
-        }
         this.scheduleTerminationAfterDrain();
       }
     });
 
     await client.connect(host, port, timeoutMs);
     this.client = client;
-    for (const item of this.breakpointSets.values()) client.setBreakpoints(item.source, item.lines);
+    for (const item of this.breakpointSets.values()) client.setBreakpoints(item.source, item.breakpoints);
   }
 
-  private async handleStopped(event: RuntimeStoppedEvent): Promise<void> {
+  private handleStopped(event: RuntimeStoppedEvent): void {
     this.currentSource = this.resolveSourcePath(event.source);
     this.currentLine = event.line;
-    this.currentFrames = (event.frames ?? []).map(frame => ({
-      ...frame,
-      source: this.resolveSourcePath(frame.source)
-    }));
+    this.currentFrames = (event.frames ?? []).map(frame => ({ ...frame, source: this.resolveSourcePath(frame.source) }));
     this.currentException = event.reason === 'exception'
       ? { ...event, source: this.currentSource, frames: this.currentFrames }
       : undefined;
-
     this.currentValues.clear();
     this.debuggerVariableNames.clear();
     this.historyReferences.clear();
@@ -546,53 +507,6 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
     if (event.reason === 'entry' && this.config?.request === 'launch' && this.config.stopOnEntry === false) {
       this.heldEntryStop = true;
       return;
-    }
-
-    if (event.reason === 'breakpoint') {
-      const key = this.breakpointKey(event.source || this.currentSource, this.currentLine);
-      const behavior = this.breakpointBehaviors.get(key);
-      const hitCount = (this.breakpointHitCounts.get(key) ?? 0) + 1;
-      this.breakpointHitCounts.set(key, hitCount);
-
-      if (behavior?.condition) {
-        const result = await this.evaluateBreakpointCondition(behavior.condition);
-        this.event('output', {
-          category: result.error ? 'stderr' : 'console',
-          output: result.error
-            ? `Condition ${this.fileName(event.source)}:${this.currentLine}: ${behavior.condition} -> ERROR: ${result.error}\n`
-            : `Condition ${this.fileName(event.source)}:${this.currentLine}: ${behavior.condition} -> ${result.matched ? 'true' : 'false'}\n`
-        });
-        if (!result.matched && !result.error) {
-          this.client?.continue();
-          return;
-        }
-      }
-
-      if (behavior?.hitCondition) {
-        const result = this.evaluateHitCondition(behavior.hitCondition, hitCount);
-        if (!result.matched && !result.error) {
-          this.client?.continue();
-          return;
-        }
-        if (result.error) {
-          this.event('output', {
-            category: 'stderr',
-            output: `Hit count '${behavior.hitCondition}' could not be evaluated: ${result.error}\n`
-          });
-        }
-      }
-
-      if (behavior?.logMessage) {
-        const output = await this.expandLogMessage(behavior.logMessage);
-        this.event('output', {
-          category: 'console',
-          output: output + '\n',
-          source: { name: this.fileName(this.currentSource), path: this.currentSource },
-          line: this.currentLine
-        });
-        this.client?.continue();
-        return;
-      }
     }
 
     this.event('stopped', {
@@ -618,14 +532,11 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         result.push(index + 1);
       }
       return result;
-    } catch {
-      return [];
-    }
+    } catch { return []; }
   }
 
   private resolveBreakpointLine(line: number, lines: number[]): number {
-    if (lines.length === 0) return line;
-    if (lines.includes(line)) return line;
+    if (lines.length === 0 || lines.includes(line)) return line;
     return lines.find(value => value > line) ?? lines.filter(value => value < line).pop() ?? line;
   }
 
@@ -646,133 +557,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
     for (const item of response?.items ?? []) this.debuggerVariableNames.add(item.name.toLowerCase());
   }
 
-  private async loadBreakpointValues(): Promise<Map<string, string>> {
-    const values = new Map<string, string>();
-    await this.refreshCurrentValues();
-    for (const item of this.currentValues.values()) values.set(item.Name.toLowerCase(), item.NewValue);
-    const debuggerVariables = await this.client?.debuggerVariables();
-    for (const item of debuggerVariables?.items ?? []) values.set(item.name.toLowerCase(), item.value);
-    return values;
-  }
-
-  private async evaluateBreakpointCondition(condition: string): Promise<ConditionalBreakpointResult> {
-    const values = await this.loadBreakpointValues();
-    const comparison = /^([A-Za-z_]\w*)\s*(==|!=|<=|>=|<|>)\s*(.+)$/.exec(condition.trim());
-
-    if (!comparison) {
-      const bare = condition.trim().toLowerCase();
-      if (!/^[a-z_]\w*$/i.test(bare))
-        return { matched: true, error: 'Supported conditions are a variable name or variable ==, !=, <, <=, >, >= value.' };
-      if (!values.has(bare)) return { matched: true, error: `Variable '${condition.trim()}' has not been observed yet.` };
-      return { matched: this.conditionTruthy(values.get(bare) ?? '') };
-    }
-
-    const name = comparison[1];
-    const operator = comparison[2];
-    const rawRight = comparison[3].trim();
-    const left = values.get(name.toLowerCase());
-    if (left === undefined) return { matched: true, error: `Variable '${name}' has not been observed yet.` };
-
-    const right = this.parseConditionOperand(rawRight, values);
-    if (right.error) return { matched: true, error: right.error };
-    return this.compareConditionValues(left, right.value ?? '', operator);
-  }
-
-  private evaluateHitCondition(condition: string, count: number): ConditionalBreakpointResult {
-    const text = condition.trim();
-    const exact = /^\d+$/.exec(text);
-    if (exact) return { matched: count === Number(exact[0]) };
-
-    const comparison = /^(==|=|!=|<=|>=|<|>)\s*(\d+)$/.exec(text);
-    if (!comparison)
-      return { matched: true, error: 'Use a positive hit count such as 10, == 10, >= 10, or > 10.' };
-
-    const target = Number(comparison[2]);
-    switch (comparison[1]) {
-      case '=':
-      case '==': return { matched: count === target };
-      case '!=': return { matched: count !== target };
-      case '<': return { matched: count < target };
-      case '<=': return { matched: count <= target };
-      case '>': return { matched: count > target };
-      case '>=': return { matched: count >= target };
-      default: return { matched: true, error: 'Unsupported hit-count operator.' };
-    }
-  }
-
-  private async expandLogMessage(message: string): Promise<string> {
-    const values = await this.loadBreakpointValues();
-    return message.replace(/\{([A-Za-z_]\w*)\}/g,
-      (_all, name: string) => values.get(name.toLowerCase()) ?? `<${name}:unobserved>`);
-  }
-
-  private parseConditionOperand(text: string, values: Map<string, string>): { value?: string; error?: string } {
-    if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'")))
-      return { value: text.slice(1, -1) };
-    if (/^(true|false|nothing|null)$/i.test(text) || /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text))
-      return { value: text };
-    if (/^[A-Za-z_]\w*$/.test(text)) {
-      const value = values.get(text.toLowerCase());
-      return value === undefined ? { error: `Variable '${text}' has not been observed yet.` } : { value };
-    }
-    return {
-      error: `Unsupported right-hand value '${text}'. Use a number, quoted string, boolean, Nothing, or another observed variable.`
-    };
-  }
-
-  private compareConditionValues(left: string, right: string, operator: string): ConditionalBreakpointResult {
-    const leftNumber = Number(left);
-    const rightNumber = Number(right);
-    const numeric = left.trim() !== '' && right.trim() !== ''
-      && Number.isFinite(leftNumber) && Number.isFinite(rightNumber);
-
-    if (numeric) {
-      switch (operator) {
-        case '==': return { matched: leftNumber === rightNumber };
-        case '!=': return { matched: leftNumber !== rightNumber };
-        case '<': return { matched: leftNumber < rightNumber };
-        case '<=': return { matched: leftNumber <= rightNumber };
-        case '>': return { matched: leftNumber > rightNumber };
-        case '>=': return { matched: leftNumber >= rightNumber };
-      }
-    }
-
-    const normalize = (value: string) => /^(nothing|null)$/i.test(value.trim()) ? '' : value;
-    const a = normalize(left);
-    const b = normalize(right);
-    const comparison = a.localeCompare(b, undefined, { sensitivity: 'base' });
-
-    switch (operator) {
-      case '==': return { matched: comparison === 0 };
-      case '!=': return { matched: comparison !== 0 };
-      case '<': return { matched: comparison < 0 };
-      case '<=': return { matched: comparison <= 0 };
-      case '>': return { matched: comparison > 0 };
-      case '>=': return { matched: comparison >= 0 };
-      default: return { matched: true, error: `Unsupported operator '${operator}'.` };
-    }
-  }
-
-  private conditionTruthy(value: string): boolean {
-    const text = value.trim();
-    return !(text === '' || /^(false|nothing|null|0)$/i.test(text));
-  }
-
-  private breakpointKey(source: string, line: number): string {
-    return `${this.fileName(source).toLowerCase()}|${line}`;
-  }
-
-  private breakpointSourceKey(source: string): string {
-    return this.fileName(source).toLowerCase();
-  }
-
-  private clearBreakpointBehaviorForSource(source: string): void {
-    const prefix = this.fileName(source).toLowerCase() + '|';
-    for (const key of [...this.breakpointBehaviors.keys()])
-      if (key.startsWith(prefix)) this.breakpointBehaviors.delete(key);
-    for (const key of [...this.breakpointHitCounts.keys()])
-      if (key.startsWith(prefix)) this.breakpointHitCounts.delete(key);
-  }
+  private breakpointSourceKey(source: string): string { return this.fileName(source).toLowerCase(); }
 
   private historyReference(name: string): number {
     for (const [reference, existing] of this.historyReferences)
@@ -784,10 +569,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
 
   private scheduleTerminationAfterDrain(): void {
     if (this.terminated || this.terminationTimer) return;
-    if (this.processExited && this.socketDisconnected) {
-      this.terminateOnce();
-      return;
-    }
+    if (this.processExited && this.socketDisconnected) { this.terminateOnce(); return; }
     this.terminationTimer = setTimeout(() => {
       this.terminationTimer = undefined;
       this.terminateOnce();
@@ -796,29 +578,17 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
 
   private terminateOnce(): void {
     if (this.terminated) return;
-    if (this.terminationTimer) {
-      clearTimeout(this.terminationTimer);
-      this.terminationTimer = undefined;
-    }
+    if (this.terminationTimer) clearTimeout(this.terminationTimer);
+    this.terminationTimer = undefined;
     this.terminated = true;
     this.event('terminated');
   }
 
   private respond(request: any, body?: any, success = true, message?: string): void {
-    this.emitter.fire({
-      seq: this.sequence++,
-      type: 'response',
-      request_seq: request.seq,
-      command: request.command,
-      success,
-      message,
-      body
-    });
+    this.emitter.fire({ seq: this.sequence++, type: 'response', request_seq: request.seq, command: request.command, success, message, body });
   }
 
-  private event(event: string, body?: any): void {
-    this.emitter.fire({ seq: this.sequence++, type: 'event', event, body });
-  }
+  private event(event: string, body?: any): void { this.emitter.fire({ seq: this.sequence++, type: 'event', event, body }); }
 
   private fileName(sourcePath: string): string {
     const normalized = sourcePath.replace(/\\/g, '/');
@@ -828,14 +598,11 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private resolveSourcePath(sourcePath: string): string {
     if (!sourcePath) return sourcePath;
     if (path.isAbsolute(sourcePath)) return path.normalize(sourcePath);
-
     const program = this.config?.program;
     if (program) {
-      if (this.fileName(program).toLowerCase() === this.fileName(sourcePath).toLowerCase())
-        return path.normalize(program);
+      if (this.fileName(program).toLowerCase() === this.fileName(sourcePath).toLowerCase()) return path.normalize(program);
       return path.resolve(path.dirname(program), sourcePath);
     }
-
     const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     return workspace ? path.resolve(workspace, sourcePath) : sourcePath;
   }
