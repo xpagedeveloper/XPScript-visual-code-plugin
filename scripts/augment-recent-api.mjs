@@ -59,73 +59,10 @@ for (const [name, value, description] of [
 ]) add({ name, qualifiedName:`NotesConst.${name}`, owner:'NotesConst', kind:'property', syntax:`NotesConst.${name}`, parameters:'', description:`${description} Value ${value}.`, source:dbDirectorySource, section:'Database type constants' });
 
 
-// NotesName and NotesDateTime are documented in tables that do not use the generic Syntax-column format.
-// Keep their complete current public surface available to completion, hover and signature help.
-const notesCapiSource = 'docs/notes-c-api.md';
-
-add({ name:'NotesName', qualifiedName:'NotesName', kind:'class', syntax:'Dim name As NotesName', parameters:'', description:'Parsed Notes/Domino name created by NotesSession.CreateName.', source:notesCapiSource, section:'NotesName' });
-add({ name:'CreateName', qualifiedName:'NotesSession.CreateName', owner:'NotesSession', kind:'function', syntax:'session.CreateName(value)', parameters:'value', returnType:'NotesName', description:'Creates and parses a Notes name.', source:notesCapiSource, section:'NotesSession' });
-for (const [name, returnType, description] of [
-  ['Parent','NotesSession','Owning NotesSession.'],
-  ['Source','String','Original trimmed input text.'],
-  ['Canonical','String','Native canonical Notes name.'],
-  ['Abbreviated','String','Native abbreviated Notes name.'],
-  ['IsHierarchical','Boolean','True when the canonical representation is hierarchical.'],
-  ['Common','String','CN component.'],
-  ['Country','String','C component.'],
-  ['Organization','String','O component.'],
-  ['OrgUnit1','String','First OU component.'],
-  ['OrgUnit2','String','Second OU component.'],
-  ['OrgUnit3','String','Third OU component.'],
-  ['OrgUnit4','String','Fourth OU component.'],
-  ['ADMD','String','A component.'],
-  ['PRMD','String','P component.'],
-  ['Addr821','String','Parsed Internet/RFC821-style address when present.'],
-  ['Addr822LocalPart','String','Parsed local part of an Internet address.'],
-  ['Addr822Phrase','String','Parsed display phrase from an Internet address.'],
-  ['Addr822Comment1','String','First parenthesized RFC 822 comment.'],
-  ['Addr822Comment2','String','Second parenthesized RFC 822 comment.'],
-  ['Addr822Comment3','String','Third parenthesized RFC 822 comment.'],
-  ['Generation','String','Generation component.'],
-  ['Given','String','Given-name component.'],
-  ['Initials','String','Initials component.'],
-  ['Surname','String','Surname component.'],
-  ['Keyword','String','Parsed name metadata keyword when supplied by Domino.'],
-  ['Language','String','Parsed name language metadata when supplied by Domino.'],
-  ['IsRecycled','Boolean','True after the wrapper has been recycled.']
-]) add({ name, qualifiedName:`NotesName.${name}`, owner:'NotesName', kind:'property', syntax:`name.${name}`, parameters:'', returnType, writable:false, description, source:notesCapiSource, section:'NotesName properties' });
-add({ name:'Recycle', qualifiedName:'NotesName.Recycle', owner:'NotesName', kind:'function', syntax:'name.Recycle()', parameters:'', description:'Invalidates the NotesName wrapper.', source:notesCapiSource, section:'NotesName methods' });
-
-add({ name:'NotesDateTime', qualifiedName:'NotesDateTime', kind:'class', syntax:'Dim value As NotesDateTime', parameters:'', description:'Native Notes/Domino TIMEDATE wrapper.', source:notesCapiSource, section:'NotesDateTime' });
-add({ name:'CreateDateTime', qualifiedName:'NotesSession.CreateDateTime', owner:'NotesSession', kind:'function', syntax:'session.CreateDateTime(value)', parameters:'value', returnType:'NotesDateTime', description:'Parses a Notes date/time value.', source:notesCapiSource, section:'NotesSession' });
-add({ name:'CreateDateTimeNow', qualifiedName:'NotesSession.CreateDateTimeNow', owner:'NotesSession', kind:'function', syntax:'session.CreateDateTimeNow()', parameters:'', returnType:'NotesDateTime', description:'Creates a NotesDateTime representing the current time.', source:notesCapiSource, section:'NotesSession' });
-for (const [name, returnType, description] of [
-  ['Parent','NotesSession','Owning NotesSession.'],
-  ['IsValidDate','Boolean','True for a successfully constructed Notes date/time.'],
-  ['IsDST','Boolean','Daylight-saving indicator returned by native time expansion.'],
-  ['TimeZone','Integer','Notes time-zone value returned by native time expansion.'],
-  ['LocalTime','String','Native-formatted local date/time.'],
-  ['GMTTime','String','Native-expanded GMT date/time.'],
-  ['ZoneTime','String','Native-expanded date/time including the current Notes zone interpretation.'],
-  ['DateOnly','String','YYYY-MM-DD from the expanded local time.'],
-  ['TimeOnly','String','HH:MM:SS from the expanded local time.'],
-  ['IsRecycled','Boolean','True after the wrapper has been recycled.']
-]) add({ name, qualifiedName:`NotesDateTime.${name}`, owner:'NotesDateTime', kind:'property', syntax:`value.${name}`, parameters:'', returnType, writable:false, description, source:notesCapiSource, section:'NotesDateTime properties' });
-for (const [name, syntax, parameters, returnType, description] of [
-  ['SetAnyDate','value.SetAnyDate()','','','Sets the date component to the Domino wildcard date.'],
-  ['SetAnyTime','value.SetAnyTime()','','','Sets the time component to the Domino wildcard time.'],
-  ['AdjustSecond','value.AdjustSecond(amount)','amount','','Adds or subtracts seconds.'],
-  ['AdjustMinute','value.AdjustMinute(amount)','amount','','Adds or subtracts minutes.'],
-  ['AdjustHour','value.AdjustHour(amount)','amount','','Adds or subtracts hours.'],
-  ['AdjustDay','value.AdjustDay(amount)','amount','','Adds or subtracts days.'],
-  ['AdjustMonth','value.AdjustMonth(amount)','amount','','Adds or subtracts months.'],
-  ['AdjustYear','value.AdjustYear(amount)','amount','','Adds or subtracts years.'],
-  ['SetNow','value.SetNow()','','','Replaces the value with the current native Notes time/date.'],
-  ['TimeDifference','value.TimeDifference(other)','other','Double','Returns this value minus another NotesDateTime in seconds. Wildcard values are rejected.'],
-  ['TimeDifferenceDouble','value.TimeDifferenceDouble(other)','other','Double','Returns the time difference in seconds as a Double.'],
-  ['ConvertToZone','value.ConvertToZone(zone)','zone','','Reinterprets the local date/time in the supplied Domino zone and stores the resulting GMT value.'],
-  ['Recycle','value.Recycle()','','','Invalidates the NotesDateTime wrapper.']
-]) add({ name, qualifiedName:`NotesDateTime.${name}`, owner:'NotesDateTime', kind:'function', syntax, parameters, ...(returnType ? { returnType } : {}), description, source:notesCapiSource, section:'NotesDateTime methods' });
+// NotesName, NotesDateTime, NotesAgent, NotesDocument, NotesView and the rest of the
+// native Notes object model are synchronized from docs/notes-c-api.md by
+// sync-current-public-api.mjs. Do not duplicate them here: hard-coded copies
+// drifted from the canonical XPscript documentation and masked missing updates.
 
 // NotesMIMEEntity / NotesMIMEHeader current verified public surface.
 // docs/notes-mime-entity.md is intentionally prose-oriented, so explicitly model it for IntelliSense.
