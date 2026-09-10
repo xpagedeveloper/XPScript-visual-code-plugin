@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { spawn, ChildProcess } from 'child_process';
 import { randomBytes } from 'crypto';
+import * as path from 'path';
 import { XPScriptRuntimeClient, RuntimeStoppedEvent, RuntimeMessage, RuntimeStackFrame, RuntimeValueChange } from './runtimeClient';
 
 interface XPScriptDebugConfig extends vscode.DebugConfiguration {
@@ -35,7 +36,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
       case 'setDataBreakpoints': { const requested=(request.arguments?.breakpoints??[]) as Array<{dataId?:string;accessType?:string}>; const names=requested.filter(i=>!i.accessType||i.accessType==='write').map(i=>String(i.dataId??'').trim()).filter(Boolean); this.client?.setDataBreakpoints(names); this.respond(request,{breakpoints:requested.map(i=>({verified:Boolean(i.dataId)&&(!i.accessType||i.accessType==='write'),message:i.accessType&&i.accessType!=='write'?'XPscript currently supports data breakpoints on writes only.':undefined}))}); return; }
       case 'configurationDone': this.respond(request); if(this.heldEntryStop){this.heldEntryStop=false;this.client?.continue();} return;
       case 'threads': this.respond(request,{threads:[{id:1,name:'XPscript main'}]}); return;
-      case 'stackTrace': { const frames=this.currentFrames.length?this.currentFrames:[{id:1,name:'XPscript',source:this.currentSource,line:this.currentLine,column:1}]; this.respond(request,{stackFrames:frames.map(f=>({id:f.id,name:f.name,line:f.line,column:f.column||1,source:f.source?{name:this.fileName(f.source),path:f.source}:undefined})),totalFrames:frames.length}); return; }
+      case 'stackTrace': { const frames=this.currentFrames.length?this.currentFrames:[{id:1,name:'XPscript',source:this.currentSource,line:this.currentLine,column:1}]; this.respond(request,{stackFrames:frames.map(f=>({id:f.id,name:f.name,line:f.line,column:f.column||1,source:f.source?{name:this.fileName(f.source),path:this.resolveSourcePath(f.source)}:undefined})),totalFrames:frames.length}); return; }
       case 'scopes': this.respond(request,{scopes:[{name:'Locals',variablesReference:1000,expensive:false},{name:'Debugger Variables',variablesReference:1002,expensive:false},{name:'Runtime',variablesReference:1001,expensive:false}]}); return;
       case 'variables': {
         const ref=request.arguments?.variablesReference;
@@ -72,8 +73,8 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   }
 
   private async attach(config:XPScriptDebugConfig):Promise<void>{this.config=config;if(!config.port)throw new Error('XPscript attach requires a port.');await this.connect(config.host??'127.0.0.1',config.port,config.token??'',10000);}
-  private async connect(host:string,port:number,token:string,timeoutMs:number):Promise<void>{const client=new XPScriptRuntimeClient(token);client.onEvent(event=>{if(event.type==='stopped'){this.handleStopped(event as RuntimeStoppedEvent);return;}if(event.type==='debugOutput'){const output=event as RuntimeMessage;const source=String(output.source??'');const line=Number(output.line??0);const prefix=source&&line>0?`${this.fileName(source)}:${line} `:'';this.event('output',{category:'console',output:prefix+String(output.output??'')+'\n',source:source?{name:this.fileName(source),path:source}:undefined,line:line>0?line:undefined});void vscode.commands.executeCommand('workbench.debug.action.focusRepl');return;}if(event.type==='error'){const e=event as RuntimeMessage;this.event('output',{category:'stderr',output:String(e.message??'Debugger runtime error')+'\n'});return;}if(event.type==='disconnected')this.terminateOnce();});await client.connect(host,port,timeoutMs);this.client=client;}
-  private handleStopped(event:RuntimeStoppedEvent):void{this.currentSource=event.source;this.currentLine=event.line;this.currentFrames=event.frames??[];this.currentException=event.reason==='exception'?event:undefined;this.currentValues.clear();this.debuggerVariableNames.clear();this.historyReferences.clear();this.nextVariableReference=2000;if(event.reason==='entry'&&this.config?.request==='launch'&&this.config.stopOnEntry===false){this.heldEntryStop=true;return;}this.event('stopped',{reason:event.reason,threadId:event.threadId||1,allThreadsStopped:true,description:event.description,text:event.description});}
+  private async connect(host:string,port:number,token:string,timeoutMs:number):Promise<void>{const client=new XPScriptRuntimeClient(token);client.onEvent(event=>{if(event.type==='stopped'){this.handleStopped(event as RuntimeStoppedEvent);return;}if(event.type==='debugOutput'){const output=event as RuntimeMessage;const source=String(output.source??'');const sourcePath=this.resolveSourcePath(source);const line=Number(output.line??0);const prefix=source&&line>0?`${this.fileName(source)}:${line} `:'';this.event('output',{category:'console',output:prefix+String(output.output??'')+'\n',source:source?{name:this.fileName(source),path:sourcePath}:undefined,line:line>0?line:undefined});void vscode.commands.executeCommand('workbench.debug.action.focusRepl');return;}if(event.type==='error'){const e=event as RuntimeMessage;this.event('output',{category:'stderr',output:String(e.message??'Debugger runtime error')+'\n'});return;}if(event.type==='disconnected')this.terminateOnce();});await client.connect(host,port,timeoutMs);this.client=client;}
+  private handleStopped(event:RuntimeStoppedEvent):void{this.currentSource=this.resolveSourcePath(event.source);this.currentLine=event.line;this.currentFrames=(event.frames??[]).map(frame=>({...frame,source:this.resolveSourcePath(frame.source)}));this.currentException=event.reason==='exception'?{...event,source:this.currentSource,frames:this.currentFrames}:undefined;this.currentValues.clear();this.debuggerVariableNames.clear();this.historyReferences.clear();this.nextVariableReference=2000;if(event.reason==='entry'&&this.config?.request==='launch'&&this.config.stopOnEntry===false){this.heldEntryStop=true;return;}this.event('stopped',{reason:event.reason,threadId:event.threadId||1,allThreadsStopped:true,description:event.description,text:event.description});}
   private executableLines(source:string):number[]{try{const fs=require('fs') as typeof import('fs');const lines=fs.readFileSync(source,'utf8').split(/\r?\n/);const result:number[]=[];for(let i=0;i<lines.length;i++){const t=lines[i].trim();if(!t||t.startsWith("'")||/^Rem\b/i.test(t)||/^(Sub|Function|Property|Class|Type)\b/i.test(t)||/^End\s+(Sub|Function|Property|Class|Type)\b/i.test(t)||/^(Else|ElseIf|End If|Next|Loop|Wend)$/i.test(t))continue;result.push(i+1);}return result;}catch{return[];}}
   private resolveBreakpointLine(line:number,lines:number[]):number{if(lines.length===0)return line;if(lines.includes(line))return line;return lines.find(v=>v>line)??lines.filter(v=>v<line).pop()??line;}
   private async refreshCurrentValues():Promise<void>{const response=await this.client?.valueHistory('');const items=response?.items??[];this.currentValues.clear();for(const item of items){const key=item.Name.toLowerCase();const current=this.currentValues.get(key);if(!current||item.Sequence>current.Sequence)this.currentValues.set(key,item);}}
@@ -82,7 +83,18 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private terminateOnce():void{if(this.terminated)return;this.terminated=true;this.event('terminated');}
   private respond(request:any,body?:any,success=true,message?:string):void{this.emitter.fire({seq:this.sequence++,type:'response',request_seq:request.seq,command:request.command,success,message,body});}
   private event(event:string,body?:any):void{this.emitter.fire({seq:this.sequence++,type:'event',event,body});}
-  private fileName(path:string):string{const normalized=path.replace(/\\/g,'/');return normalized.slice(normalized.lastIndexOf('/')+1);}
+  private fileName(sourcePath:string):string{const normalized=sourcePath.replace(/\\/g,'/');return normalized.slice(normalized.lastIndexOf('/')+1);}
+  private resolveSourcePath(sourcePath:string):string{
+    if(!sourcePath)return sourcePath;
+    if(path.isAbsolute(sourcePath))return path.normalize(sourcePath);
+    const program=this.config?.program;
+    if(program){
+      if(this.fileName(program).toLowerCase()===this.fileName(sourcePath).toLowerCase())return path.normalize(program);
+      return path.resolve(path.dirname(program),sourcePath);
+    }
+    const workspace=vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    return workspace?path.resolve(workspace,sourcePath):sourcePath;
+  }
   private async findPort():Promise<number>{const net=await import('net');return new Promise((resolve,reject)=>{const server=net.createServer();server.once('error',reject);server.listen(0,'127.0.0.1',()=>{const address=server.address();if(!address||typeof address==='string'){server.close();reject(new Error('Unable to allocate debugger port.'));return;}const port=address.port;server.close(error=>error?reject(error):resolve(port));});});}
 }
 export class XPScriptDebugAdapterDescriptorFactory implements vscode.DebugAdapterDescriptorFactory { public createDebugAdapterDescriptor():vscode.ProviderResult<vscode.DebugAdapterDescriptor>{return new vscode.DebugAdapterInlineImplementation(new XPScriptDebugAdapter());} }
