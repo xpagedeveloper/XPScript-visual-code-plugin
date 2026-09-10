@@ -82,17 +82,16 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
             { filter: 'all', label: 'All XPscript exceptions', default: false }
           ]
         });
+        this.event('initialized');
         return;
 
       case 'launch':
         await this.launch(request.arguments as XPScriptDebugConfig);
-        this.event('initialized');
         this.respond(request);
         return;
 
       case 'attach':
         await this.attach(request.arguments as XPScriptDebugConfig);
-        this.event('initialized');
         this.respond(request);
         return;
 
