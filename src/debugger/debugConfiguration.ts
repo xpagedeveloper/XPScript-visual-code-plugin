@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { snapshotRegisteredBreakpoints } from './breakpointRegistry';
+import { seedBreakpointRegistry, snapshotRegisteredBreakpoints } from './breakpointRegistry';
 
 export interface XPScriptStartupBreakpoint {
   source: string;
@@ -21,9 +21,11 @@ export interface XPScriptDebugConfiguration extends vscode.DebugConfiguration {
   executable?: string;
   args?: string[];
   startupBreakpoints?: XPScriptStartupBreakpoint[];
+  startupVSCodeBreakpointCount?: number;
 }
 
 function snapshotBreakpoints(): XPScriptStartupBreakpoint[] {
+  seedBreakpointRegistry(vscode.debug.breakpoints);
   return snapshotRegisteredBreakpoints().map(item => ({ ...item }));
 }
 
@@ -54,6 +56,7 @@ export class XPScriptDebugConfigurationProvider implements vscode.DebugConfigura
         void vscode.window.showErrorMessage(`XPscript ${config.target} debugging currently uses an attach configuration.`);
         return undefined;
       }
+      config.startupVSCodeBreakpointCount = vscode.debug.breakpoints.length;
       config.startupBreakpoints = snapshotBreakpoints();
     }
 
@@ -64,6 +67,7 @@ export class XPScriptDebugConfigurationProvider implements vscode.DebugConfigura
         void vscode.window.showErrorMessage('XPscript debugger attach requires a valid TCP port.');
         return undefined;
       }
+      config.startupVSCodeBreakpointCount = vscode.debug.breakpoints.length;
       config.startupBreakpoints = snapshotBreakpoints();
     }
 
