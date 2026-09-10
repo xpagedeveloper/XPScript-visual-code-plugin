@@ -32,10 +32,10 @@ const cleanCell = value => value.trim().replace(/^`|`$/g, '').replace(/\\\|/g, '
 const splitRow = line => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(cleanCell);
 const memberName = raw => raw.replace(/^`|`$/g, '').replace(/\(.*$/, '').trim();
 const propertyNames = raw => {
-  const tickNames = [...raw.matchAll(/`([A-Za-z_]\\w*)`/g)].map(match => match[1]);
+  const tickNames = [...raw.matchAll(/`([A-Za-z_]\w*)`/g)].map(match => match[1]);
   if (tickNames.length > 0) return tickNames;
   const name = memberName(raw);
-  return /^[A-Za-z_]\\w*$/.test(name) ? [name] : [];
+  return /^[A-Za-z_]\w*$/.test(name) ? [name] : [];
 };
 const typeName = raw => {
   const tick = raw.match(/`([A-Za-z_]\w*)`/);
