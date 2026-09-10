@@ -14,9 +14,6 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
     this.inner.onDidSendMessage(message => {
       if (message?.type === 'response' && Number(message?.request_seq ?? 0) < 0) return;
 
-      // Keep VS Code's original source identity. The inner adapter used to replace
-      // source.name with "file.xps:line", which can detach a persisted source
-      // breakpoint from the editor document on the next debug session.
       if (message?.type === 'response' && message?.command === 'setBreakpoints' && Array.isArray(message?.body?.breakpoints)) {
         message = {
           ...message,
@@ -66,12 +63,15 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
     }
 
     if (message?.type === 'request' && (message.command === 'launch' || message.command === 'attach')) {
-      this.installStartupBreakpoints(message.arguments?.startupBreakpoints);
+      this.installStartupBreakpoints(
+        message.arguments?.startupBreakpoints,
+        Number(message.arguments?.startupVSCodeBreakpointCount ?? 0)
+      );
     }
     this.inner.handleMessage(message);
   }
 
-  private installStartupBreakpoints(value: unknown): void {
+  private installStartupBreakpoints(value: unknown, rawVSCodeCount: number): void {
     const startup = Array.isArray(value) ? value as XPScriptStartupBreakpoint[] : [];
     const grouped = new Map<string, XPScriptStartupBreakpoint[]>();
 
@@ -97,7 +97,7 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
       event: 'output',
       body: {
         category: 'console',
-        output: `XPscript startup breakpoint snapshot: ${startup.length}.\n`
+        output: `XPscript VS Code breakpoint objects: ${rawVSCodeCount}; startup snapshot: ${startup.length}.\n`
       }
     });
 
