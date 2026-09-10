@@ -11,9 +11,19 @@ export interface RegisteredXPScriptBreakpoint {
 
 const breakpoints = new Map<string, RegisteredXPScriptBreakpoint>();
 
-function isXPScriptSourceBreakpoint(value: vscode.Breakpoint): value is vscode.SourceBreakpoint {
-  if (!(value instanceof vscode.SourceBreakpoint)) return false;
-  const extension = path.extname(value.location.uri.fsPath).toLowerCase();
+type SourceBreakpointLike = vscode.Breakpoint & {
+  location: vscode.Location;
+  condition?: string;
+  hitCondition?: string;
+  logMessage?: string;
+};
+
+export function isXPScriptSourceBreakpoint(value: vscode.Breakpoint): value is SourceBreakpointLike {
+  const candidate = value as Partial<SourceBreakpointLike>;
+  const uri = candidate.location?.uri;
+  const range = candidate.location?.range;
+  if (!uri || !range || typeof uri.fsPath !== 'string') return false;
+  const extension = path.extname(uri.fsPath).toLowerCase();
   return extension === '.xps' || extension === '.xpscript';
 }
 
@@ -21,7 +31,7 @@ function keyFor(source: string, line: number): string {
   return `${path.normalize(source).toLowerCase()}|${line}`;
 }
 
-function fromVSCode(breakpoint: vscode.SourceBreakpoint): RegisteredXPScriptBreakpoint {
+function fromVSCode(breakpoint: SourceBreakpointLike): RegisteredXPScriptBreakpoint {
   const source = path.normalize(breakpoint.location.uri.fsPath);
   return {
     source,
