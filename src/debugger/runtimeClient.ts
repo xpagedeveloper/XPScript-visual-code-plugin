@@ -1,6 +1,6 @@
 import * as net from 'net';
 
-const SUPPORTED_PROTOCOL = 5;
+const SUPPORTED_PROTOCOL = 6;
 
 export interface RuntimeStackFrame {
   id: number;
@@ -48,6 +48,13 @@ export interface RuntimeDebuggerVariable {
 export interface RuntimeDebuggerVariablesEvent {
   type: 'debuggerVariables';
   items: RuntimeDebuggerVariable[];
+}
+
+export interface RuntimeBreakpoint {
+  line: number;
+  condition?: string;
+  hitCondition?: string;
+  logMessage?: string;
 }
 
 export interface RuntimeMessage {
@@ -109,11 +116,12 @@ export class XPScriptRuntimeClient {
     throw lastError instanceof Error ? lastError : new Error(`Unable to connect to XPscript debugger at ${host}:${port}.`);
   }
 
-  public setBreakpoints(source: string, lines: number[]): void {
+  public setBreakpoints(source: string, breakpoints: RuntimeBreakpoint[]): void {
     const normalized = source.replace(/\\/g, '/');
     const runtimeSource = normalized.slice(normalized.lastIndexOf('/') + 1);
-    this.send({ command: 'setBreakpoints', source: runtimeSource, lines });
+    this.send({ command: 'setBreakpoints', source: runtimeSource, breakpoints });
   }
+
   public setDataBreakpoints(names: string[]): void { this.send({ command: 'setDataBreakpoints', names }); }
   public setExceptionBreakpoints(filters: string[]): void { this.send({ command: 'setExceptionBreakpoints', filters }); }
 
@@ -168,9 +176,7 @@ export class XPScriptRuntimeClient {
     const socket = this.socket;
     if (!socket) return;
     try { socket.end(); } catch { socket.destroy(); }
-    setTimeout(() => {
-      if (!socket.destroyed) socket.destroy();
-    }, 250).unref();
+    setTimeout(() => { if (!socket.destroyed) socket.destroy(); }, 250).unref();
   }
 
   public dispose(): void {
