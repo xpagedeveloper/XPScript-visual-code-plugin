@@ -11,6 +11,7 @@ interface XPScriptDebugConfig extends vscode.DebugConfiguration {
 
 interface ConditionalBreakpointResult { matched:boolean; error?:string; }
 interface PendingBreakpointSet { source:string; lines:number[]; }
+interface BreakpointBehavior { condition?:string; hitCondition?:string; logMessage?:string; }
 
 export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private readonly emitter = new vscode.EventEmitter<any>();
@@ -18,7 +19,8 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private currentSource=''; private currentLine=1; private currentFrames:RuntimeStackFrame[]=[]; private currentException:RuntimeStoppedEvent|undefined;
   private config:XPScriptDebugConfig|undefined; private heldEntryStop=false; private terminated=false; private nextVariableReference=2000;
   private readonly historyReferences=new Map<number,string>(); private readonly currentValues=new Map<string,RuntimeValueChange>(); private readonly debuggerVariableNames=new Set<string>();
-  private readonly breakpointConditions=new Map<string,string>();
+  private readonly breakpointBehaviors=new Map<string,BreakpointBehavior>();
+  private readonly breakpointHitCounts=new Map<string,number>();
   private readonly breakpointSets=new Map<string,PendingBreakpointSet>();
   public readonly onDidSendMessage=this.emitter.event;
   public handleMessage(message:any):void { void this.handleRequest(message).catch(error=>this.respond(message,undefined,false,error instanceof Error?error.message:String(error))); }
@@ -26,14 +28,21 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
 
   private async handleRequest(request:any):Promise<void> {
     switch(request.command) {
-      case 'initialize': this.respond(request,{supportsConfigurationDoneRequest:true,supportsConditionalBreakpoints:true,supportsEvaluateForHovers:true,supportsStepBack:false,supportsTerminateRequest:true,supportsDataBreakpoints:true,supportsExceptionInfoRequest:true,exceptionBreakpointFilters:[{filter:'uncaught',label:'Uncaught XPscript exceptions',default:true},{filter:'all',label:'All XPscript exceptions',default:false}]}); this.event('initialized'); return;
+      case 'initialize': this.respond(request,{supportsConfigurationDoneRequest:true,supportsConditionalBreakpoints:true,supportsHitConditionalBreakpoints:true,supportsLogPoints:true,supportsEvaluateForHovers:true,supportsStepBack:false,supportsTerminateRequest:true,supportsDataBreakpoints:true,supportsExceptionInfoRequest:true,exceptionBreakpointFilters:[{filter:'uncaught',label:'Uncaught XPscript exceptions',default:true},{filter:'all',label:'All XPscript exceptions',default:false}]}); this.event('initialized'); return;
       case 'launch': await this.launch(request.arguments as XPScriptDebugConfig); this.respond(request); return;
       case 'attach': await this.attach(request.arguments as XPScriptDebugConfig); this.respond(request); return;
       case 'setBreakpoints': {
-        const source=request.arguments?.source?.path??''; const requested=(request.arguments?.breakpoints??[]) as Array<{line:number;condition?:string}>;
+        const source=request.arguments?.source?.path??'';
+        const requested=(request.arguments?.breakpoints??[]) as Array<{line:number;condition?:string;hitCondition?:string;logMessage?:string}>;
         const executableLines=this.executableLines(source); const resolved=requested.map(item=>this.resolveBreakpointLine(item.line,executableLines));
-        this.clearBreakpointConditionsForSource(source);
-        requested.forEach((item,index)=>{const condition=String(item.condition??'').trim();if(condition&&resolved[index]>0)this.breakpointConditions.set(this.breakpointKey(source,resolved[index]),condition);});
+        this.clearBreakpointBehaviorForSource(source);
+        requested.forEach((item,index)=>{
+          const line=resolved[index]; if(line<=0)return;
+          const condition=String(item.condition??'').trim();
+          const hitCondition=String(item.hitCondition??'').trim();
+          const logMessage=String(item.logMessage??'').trim();
+          if(condition||hitCondition||logMessage)this.breakpointBehaviors.set(this.breakpointKey(source,line),{condition:condition||undefined,hitCondition:hitCondition||undefined,logMessage:logMessage||undefined});
+        });
         this.breakpointSets.set(this.breakpointSourceKey(source),{source,lines:resolved});
         this.client?.setBreakpoints(source,resolved);
         this.respond(request,{breakpoints:requested.map((item,index)=>{const line=resolved[index]||item.line;const sourceInfo=request.arguments?.source?{...request.arguments.source,name:`${this.fileName(source)}:${line}`} : undefined;return{verified:resolved[index]>0,line,source:sourceInfo,message:resolved[index]!==item.line?`Moved to executable XPscript line ${resolved[index]}.`:undefined};})}); return;
@@ -86,11 +95,24 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
     this.currentSource=this.resolveSourcePath(event.source);this.currentLine=event.line;this.currentFrames=(event.frames??[]).map(frame=>({...frame,source:this.resolveSourcePath(frame.source)}));this.currentException=event.reason==='exception'?{...event,source:this.currentSource,frames:this.currentFrames}:undefined;this.currentValues.clear();this.debuggerVariableNames.clear();this.historyReferences.clear();this.nextVariableReference=2000;
     if(event.reason==='entry'&&this.config?.request==='launch'&&this.config.stopOnEntry===false){this.heldEntryStop=true;return;}
     if(event.reason==='breakpoint'){
-      const condition=this.breakpointConditions.get(this.breakpointKey(this.currentSource,this.currentLine));
-      if(condition){
-        const result=await this.evaluateBreakpointCondition(condition);
+      const key=this.breakpointKey(this.currentSource,this.currentLine);
+      const behavior=this.breakpointBehaviors.get(key);
+      const hitCount=(this.breakpointHitCounts.get(key)??0)+1;
+      this.breakpointHitCounts.set(key,hitCount);
+      if(behavior?.condition){
+        const result=await this.evaluateBreakpointCondition(behavior.condition);
         if(!result.matched&&!result.error){this.client?.continue();return;}
-        if(result.error)this.event('output',{category:'stderr',output:`Conditional breakpoint '${condition}' could not be evaluated: ${result.error}\n`});
+        if(result.error)this.event('output',{category:'stderr',output:`Conditional breakpoint '${behavior.condition}' could not be evaluated: ${result.error}\n`});
+      }
+      if(behavior?.hitCondition){
+        const result=this.evaluateHitCondition(behavior.hitCondition,hitCount);
+        if(!result.matched&&!result.error){this.client?.continue();return;}
+        if(result.error)this.event('output',{category:'stderr',output:`Hit count '${behavior.hitCondition}' could not be evaluated: ${result.error}\n`});
+      }
+      if(behavior?.logMessage){
+        const output=await this.expandLogMessage(behavior.logMessage);
+        this.event('output',{category:'console',output:output+'\n',source:{name:this.fileName(this.currentSource),path:this.currentSource},line:this.currentLine});
+        this.client?.continue();return;
       }
     }
     this.event('stopped',{reason:event.reason,threadId:event.threadId||1,allThreadsStopped:true,description:event.description,text:event.description});
@@ -99,13 +121,16 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private resolveBreakpointLine(line:number,lines:number[]):number{if(lines.length===0)return line;if(lines.includes(line))return line;return lines.find(v=>v>line)??lines.filter(v=>v<line).pop()??line;}
   private async refreshCurrentValues():Promise<void>{const response=await this.client?.valueHistory('');const items=response?.items??[];this.currentValues.clear();for(const item of items){const key=item.Name.toLowerCase();const current=this.currentValues.get(key);if(!current||item.Sequence>current.Sequence)this.currentValues.set(key,item);}}
   private async refreshDebuggerVariableNames():Promise<void>{const response=await this.client?.debuggerVariables();this.debuggerVariableNames.clear();for(const item of response?.items??[])this.debuggerVariableNames.add(item.name.toLowerCase());}
-  private async evaluateBreakpointCondition(condition:string):Promise<ConditionalBreakpointResult>{
+  private async loadBreakpointValues():Promise<Map<string,string>>{
     const values=new Map<string,string>();
     await this.refreshCurrentValues();
     for(const item of this.currentValues.values())values.set(item.Name.toLowerCase(),item.NewValue);
     const debuggerVariables=await this.client?.debuggerVariables();
     for(const item of debuggerVariables?.items??[])values.set(item.name.toLowerCase(),item.value);
-
+    return values;
+  }
+  private async evaluateBreakpointCondition(condition:string):Promise<ConditionalBreakpointResult>{
+    const values=await this.loadBreakpointValues();
     const comparison=/^([A-Za-z_]\w*)\s*(==|!=|<=|>=|<|>)\s*(.+)$/.exec(condition.trim());
     if(!comparison){
       const bare=condition.trim().toLowerCase();
@@ -120,6 +145,18 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
     if(right.error)return{matched:true,error:right.error};
     const result=this.compareConditionValues(left,right.value??'',op);
     return result.error?{matched:true,error:result.error}:{matched:result.matched};
+  }
+  private evaluateHitCondition(condition:string,count:number):ConditionalBreakpointResult{
+    const text=condition.trim();
+    const exact=/^\d+$/.exec(text); if(exact)return{matched:count===Number(exact[0])};
+    const comparison=/^(==|=|!=|<=|>=|<|>)\s*(\d+)$/.exec(text);
+    if(!comparison)return{matched:true,error:'Use a positive hit count such as 10, == 10, >= 10, or > 10.'};
+    const target=Number(comparison[2]);
+    switch(comparison[1]){case'=':case'==':return{matched:count===target};case'!=':return{matched:count!==target};case'<':return{matched:count<target};case'<=':return{matched:count<=target};case'>':return{matched:count>target};case'>=':return{matched:count>=target};default:return{matched:true,error:'Unsupported hit-count operator.'};}
+  }
+  private async expandLogMessage(message:string):Promise<string>{
+    const values=await this.loadBreakpointValues();
+    return message.replace(/\{([A-Za-z_]\w*)\}/g,(_all,name:string)=>values.get(name.toLowerCase())??`<${name}:unobserved>`);
   }
   private parseConditionOperand(text:string,values:Map<string,string>):{value?:string;error?:string}{
     if((text.startsWith('"')&&text.endsWith('"'))||(text.startsWith("'")&&text.endsWith("'")))return{value:text.slice(1,-1)};
@@ -137,7 +174,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private conditionTruthy(value:string):boolean{const text=value.trim();if(text===''||/^(false|nothing|null|0)$/i.test(text))return false;return true;}
   private breakpointKey(source:string,line:number):string{return `${this.resolveSourcePath(source).toLowerCase()}|${line}`;}
   private breakpointSourceKey(source:string):string{return this.resolveSourcePath(source).toLowerCase();}
-  private clearBreakpointConditionsForSource(source:string):void{const prefix=this.resolveSourcePath(source).toLowerCase()+'|';for(const key of [...this.breakpointConditions.keys()])if(key.startsWith(prefix))this.breakpointConditions.delete(key);}
+  private clearBreakpointBehaviorForSource(source:string):void{const prefix=this.resolveSourcePath(source).toLowerCase()+'|';for(const key of [...this.breakpointBehaviors.keys()])if(key.startsWith(prefix))this.breakpointBehaviors.delete(key);for(const key of [...this.breakpointHitCounts.keys()])if(key.startsWith(prefix))this.breakpointHitCounts.delete(key);}
   private historyReference(name:string):number{for(const [ref,existing] of this.historyReferences)if(existing.toLowerCase()===name.toLowerCase())return ref;const ref=this.nextVariableReference++;this.historyReferences.set(ref,name);return ref;}
   private terminateOnce():void{if(this.terminated)return;this.terminated=true;this.event('terminated');}
   private respond(request:any,body?:any,success=true,message?:string):void{this.emitter.fire({seq:this.sequence++,type:'response',request_seq:request.seq,command:request.command,success,message,body});}
