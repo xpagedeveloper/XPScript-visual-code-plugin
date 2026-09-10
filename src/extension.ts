@@ -9,8 +9,7 @@ import { XPScriptDebugAdapterDescriptorFactory } from './debugger/debugAdapterBo
 import {
   applyBreakpointChanges,
   seedBreakpointRegistry,
-  snapshotRegisteredBreakpoints,
-  registeredBreakpointCount
+  snapshotRegisteredBreakpoints
 } from './debugger/breakpointRegistry';
 
 function canStartExecutable(executable: string): Promise<boolean> {
@@ -139,7 +138,6 @@ async function syncBreakpointsFromRegistry(session: vscode.DebugSession, affecte
     }
   }
 
-  vscode.debug.activeDebugConsole.appendLine(`XPscript imported ${imported} breakpoint(s) from XPscript breakpoint registry.`);
   return imported;
 }
 
@@ -307,7 +305,6 @@ export function activate(context: vscode.ExtensionContext): void {
     if (session.type !== 'xpscript') return;
     diagnostics.clear();
     updateStatus();
-    vscode.debug.activeDebugConsole.appendLine(`XPscript breakpoint registry contains ${registeredBreakpointCount()} breakpoint(s).`);
     void syncBreakpointsFromRegistry(session);
   });
   const stopSession = vscode.debug.onDidTerminateDebugSession(session => {
