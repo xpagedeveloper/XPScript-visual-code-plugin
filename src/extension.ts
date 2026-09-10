@@ -5,7 +5,7 @@ import { getCompletions, getHover, getSignatureHelp } from './languageService';
 import { semanticTokensLegend, XPScriptSemanticTokensProvider } from './semanticTokens';
 import { checkForUpdates, scheduleAutomaticUpdateCheck } from './updater';
 import { XPScriptDebugConfigurationProvider } from './debugger/debugConfiguration';
-import { XPScriptDebugAdapterDescriptorFactory } from './debugger/debugAdapter';
+import { XPScriptDebugAdapterDescriptorFactory } from './debugger/debugAdapterBootstrap';
 
 function canStartExecutable(executable: string): Promise<boolean> {
   return new Promise(resolve => execFile(executable, ['--help'], { windowsHide: true, timeout: 5000 }, error => resolve(!error)));
@@ -104,10 +104,7 @@ async function syncBreakpointsFromVSCode(session: vscode.DebugSession, affectedS
     grouped.get(key)!.push(breakpoint);
   }
 
-  const sources = affectedSources
-    ? [...affectedSources]
-    : [...grouped.keys()];
-
+  const sources = affectedSources ? [...affectedSources] : [...grouped.keys()];
   const program = typeof session.configuration.program === 'string'
     ? path.normalize(session.configuration.program)
     : '';
@@ -164,6 +161,12 @@ function appendDiagnostic(
   collection.set(uri, [...existing, diagnostic]);
 }
 
+function resolveDiagnosticPath(session: vscode.DebugSession, source: string): string {
+  const program = typeof session.configuration.program === 'string' ? session.configuration.program : '';
+  if (path.isAbsolute(source)) return source;
+  return path.resolve(program ? path.dirname(program) : process.cwd(), source);
+}
+
 function parseDiagnosticOutput(
   collection: vscode.DiagnosticCollection,
   session: vscode.DebugSession,
@@ -175,22 +178,40 @@ function parseDiagnosticOutput(
   const explicitSource = typeof body?.source?.path === 'string' ? body.source.path : '';
   const explicitLine = Number(body?.line ?? 0);
   if (explicitSource && explicitLine > 0 && (body?.category === 'stderr' || /\berror\b/i.test(output))) {
-    appendDiagnostic(collection, vscode.Uri.file(explicitSource), explicitLine, Number(body?.column ?? 1), output,
-      /\bwarning\b/i.test(output) ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error);
-    return;
+    appendDiagnostic(
+      collection,
+      vscode.Uri.file(explicitSource),
+      explicitLine,
+      Number(body?.column ?? 1),
+      output,
+      /\bwarning\b/i.test(output) ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error
+    );
   }
 
-  const program = typeof session.configuration.program === 'string' ? session.configuration.program : '';
+  const structured = /(?:^|\r?\n)\s*file\s*:\s*(.+?)\r?\n\s*line\s*:\s*(\d+)\r?\n\s*(?:position|column)\s*:\s*(\d+)\r?\n\s*description\s*:\s*(.+?)(?=\r?\n\s*(?:file\s*:|$)|$)/gim;
+  for (const match of output.matchAll(structured)) {
+    const description = match[4].trim();
+    const codeMatch = /^([A-Za-z]+\d+)\s*:\s*(.*)$/.exec(description);
+    appendDiagnostic(
+      collection,
+      vscode.Uri.file(resolveDiagnosticPath(session, match[1].trim())),
+      Number(match[2]),
+      Number(match[3]),
+      codeMatch?.[2] ?? description,
+      /\bwarning\b/i.test(description) ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error,
+      codeMatch?.[1]
+    );
+  }
+
   for (const rawLine of output.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line) continue;
 
     let match = /^(.*\.(?:xps|xpscript))\((\d+)(?:,(\d+))?\)\s*:\s*(?:(error|warning)\s*)?([A-Za-z]+\d+)?\s*:?\s*(.+)$/i.exec(line);
     if (match) {
-      const sourcePath = path.isAbsolute(match[1]) ? match[1] : path.resolve(program ? path.dirname(program) : process.cwd(), match[1]);
       appendDiagnostic(
         collection,
-        vscode.Uri.file(sourcePath),
+        vscode.Uri.file(resolveDiagnosticPath(session, match[1])),
         Number(match[2]),
         Number(match[3] ?? 1),
         match[6],
@@ -202,10 +223,9 @@ function parseDiagnosticOutput(
 
     match = /^(.*\.(?:xps|xpscript)):(\d+)(?::(\d+))?\s*[:\-]?\s*(?:(error|warning)\s*)?(.+)$/i.exec(line);
     if (match) {
-      const sourcePath = path.isAbsolute(match[1]) ? match[1] : path.resolve(program ? path.dirname(program) : process.cwd(), match[1]);
       appendDiagnostic(
         collection,
-        vscode.Uri.file(sourcePath),
+        vscode.Uri.file(resolveDiagnosticPath(session, match[1])),
         Number(match[2]),
         Number(match[3] ?? 1),
         match[5],
