@@ -1,0 +1,87 @@
+name: Sync XPscript API catalog
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-xpscript-api
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout XPscript source
+        uses: actions/checkout@v4
+        with:
+          repository: xpagedeveloper/XPscript
+          ref: main
+          path: xpscript-source
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Regenerate IntelliSense catalog
+        env:
+          XPSCRIPT_REPO_PATH: ${{ github.workspace }}/xpscript-source
+          XPSCRIPT_ASTRO_DOCS_PATH: ${{ github.workspace }}/xpscript-source
+        run: npm run generate:catalog
+
+      - name: Detect upstream API changes
+        id: diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/generated/apiCatalog.ts src/generated/parameterHelp.ts; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "XPscript API catalog is already synchronized."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "XPscript API changes detected."
+            git diff --stat -- src/generated/apiCatalog.ts src/generated/parameterHelp.ts
+          fi
+
+      - name: Bump patch version
+        if: steps.diff.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('fs');
+          const file = 'package.json';
+          const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const parts = String(pkg.version).split('.').map(Number);
+          if (parts.length !== 3 || parts.some(Number.isNaN)) throw new Error('Expected semantic x.y.z package version');
+          parts[2] += 1;
+          pkg.version = parts.join('.');
+          fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + '\n');
+          console.log('Bumped extension version to', pkg.version);
+          NODE
+
+      - name: Commit synchronized catalog
+        if: steps.diff.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          upstream_sha=$(git -C xpscript-source rev-parse HEAD)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json src/generated/apiCatalog.ts src/generated/parameterHelp.ts
+          git commit -m "Sync IntelliSense with XPscript ${upstream_sha:0:8}"
+          git push origin HEAD:main
