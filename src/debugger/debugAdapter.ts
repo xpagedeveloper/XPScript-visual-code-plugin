@@ -36,7 +36,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         requested.forEach((item,index)=>{const condition=String(item.condition??'').trim();if(condition&&resolved[index]>0)this.breakpointConditions.set(this.breakpointKey(source,resolved[index]),condition);});
         this.breakpointSets.set(this.breakpointSourceKey(source),{source,lines:resolved});
         this.client?.setBreakpoints(source,resolved);
-        this.respond(request,{breakpoints:requested.map((item,index)=>({verified:resolved[index]>0,line:resolved[index]||item.line,source:request.arguments?.source,message:resolved[index]!==item.line?`Moved to executable XPscript line ${resolved[index]}.`:undefined}))}); return;
+        this.respond(request,{breakpoints:requested.map((item,index)=>{const line=resolved[index]||item.line;const sourceInfo=request.arguments?.source?{...request.arguments.source,name:`${this.fileName(source)}:${line}`} : undefined;return{verified:resolved[index]>0,line,source:sourceInfo,message:resolved[index]!==item.line?`Moved to executable XPscript line ${resolved[index]}.`:undefined};})}); return;
       }
       case 'setExceptionBreakpoints': { const filters=((request.arguments?.filters??[]) as string[]).filter(v=>v==='all'||v==='uncaught'); this.client?.setExceptionBreakpoints(filters); this.respond(request); return; }
       case 'exceptionInfo': { const e=this.currentException; this.respond(request,{exceptionId:e?.exceptionId??'XPscript exception',description:e?.description??'XPscript exception',breakMode:e?.breakMode??'unhandled'}); return; }
