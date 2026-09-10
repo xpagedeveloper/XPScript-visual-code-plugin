@@ -23,7 +23,7 @@ export function provideSnippetCompletions(
     item.documentation = new vscode.MarkdownString(snippet.description);
     item.insertText = new vscode.SnippetString(snippet.body);
     item.range = replaceRange;
-    item.filterText = snippet.name;
+    item.filterText = `snippet.${snippet.name}`;
     item.sortText = snippet.name.toLowerCase();
     return item;
   });
