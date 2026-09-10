@@ -1,6 +1,6 @@
 {
-  "NotesSession": {
-    "prefix": "NotesSession",
+  "NotesSnippet": {
+    "prefix": "NotesSnippet",
     "description": "Create a basic NotesSession and print the current user's common username",
     "body": [
       "Dim session As New NotesSession()",
