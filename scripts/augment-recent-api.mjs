@@ -19,6 +19,9 @@ add({ name:'Debugger', qualifiedName:'Debugger', kind:'class', syntax:'Debugger.
 add({ name:'Print', qualifiedName:'Debugger.Print', owner:'Debugger', kind:'function', syntax:'Debugger.Print(value)', parameters:'value', description:'Writes a value to the XPscript debugger output without writing to normal program output.', source:debuggerSource, section:'Debugger API' });
 add({ name:'UpdateVar', qualifiedName:'Debugger.UpdateVar', owner:'Debugger', kind:'function', syntax:'Debugger.UpdateVar(name, value)', parameters:'name; value', description:'Creates or updates a named debugger variable that participates in debugger inspection and breakpoint evaluation.', source:debuggerSource, section:'Debugger API' });
 
+// ArraySort was added as a prose-only API page, so the generic Markdown table parser cannot discover it.
+add({ name:'ArraySort', qualifiedName:'ArraySort', kind:'function', syntax:'ArraySort(array)', parameters:'array', description:'Returns a sorted copy of a one-dimensional typed array while preserving its element type and lower bound.', source:'docs/array-sort.md', section:'ArraySort' });
+
 // Application.Executable metadata added 2026-09-09. Use an explicit nested type so member completion works through Application.Executable.
 const applicationSource = 'docs/application-reference.md';
 add({ name:'Executable', qualifiedName:'Application.Executable', owner:'Application', kind:'property', syntax:'Application.Executable', parameters:'', returnType:'ApplicationExecutable', description:'Executable metadata object used by the compiler and available at runtime.', source:applicationSource, section:'Executable metadata' });
