@@ -79,10 +79,12 @@ export class XPScriptRuntimeClient {
   private helloReject: ((error: Error) => void) | undefined;
   private connectedOnce = false;
   private closing = false;
+  private completed = false;
 
   constructor(private readonly token = '') {}
 
   public get isConnected(): boolean { return Boolean(this.socket && !this.socket.destroyed); }
+  public get isCompleted(): boolean { return this.completed; }
 
   public onEvent(listener: (event: RuntimeEvent) => void): { dispose(): void } {
     this.listeners.add(listener);
@@ -93,6 +95,7 @@ export class XPScriptRuntimeClient {
     const deadline = Date.now() + timeoutMs;
     let lastError: unknown;
     this.closing = false;
+    this.completed = false;
     while (Date.now() < deadline) {
       try {
         await this.connectOnce(host, port, Math.max(250, deadline - Date.now()));
@@ -196,10 +199,11 @@ export class XPScriptRuntimeClient {
         this.socket = socket;
         this.connectedOnce = true;
         this.closing = false;
+        this.completed = false;
         this.helloResolve = () => { clearTimeout(timer); resolve(); };
         this.helloReject = error => { clearTimeout(timer); reject(error); };
         socket.on('error', (error: NodeJS.ErrnoException) => {
-          if (error.code === 'ECONNRESET' && this.connectedOnce) return;
+          if ((error.code === 'ECONNRESET' || error.code === 'EPIPE') && (this.connectedOnce || this.completed)) return;
           if (!this.closing) this.emit({ type: 'error', message: error.message });
         });
         socket.on('data', chunk => this.handleData(chunk.toString('utf8')));
@@ -208,7 +212,7 @@ export class XPScriptRuntimeClient {
           this.flushTrailingBuffer();
           if (this.socket === socket) this.socket = undefined;
           this.rejectPending(new Error('XPscript debugger runtime disconnected.'));
-          this.emit({ type: 'disconnected' });
+          this.emit({ type: 'disconnected', completed: this.completed });
         });
       });
     });
@@ -259,6 +263,10 @@ export class XPScriptRuntimeClient {
         this.helloResolve?.();
         this.helloResolve = undefined;
         this.helloReject = undefined;
+      }
+      if (event.type === 'complete') {
+        this.completed = true;
+        this.closing = true;
       }
       if (event.type === 'valueHistory' && this.historyWaiters.length > 0) {
         const waiter = this.historyWaiters.shift()!;
