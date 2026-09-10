@@ -82,16 +82,17 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
             { filter: 'all', label: 'All XPscript exceptions', default: false }
           ]
         });
-        this.event('initialized');
         return;
 
       case 'launch':
         await this.launch(request.arguments as XPScriptDebugConfig);
+        this.event('initialized');
         this.respond(request);
         return;
 
       case 'attach':
         await this.attach(request.arguments as XPScriptDebugConfig);
+        this.event('initialized');
         this.respond(request);
         return;
 
@@ -114,20 +115,6 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
 
         this.breakpointSets.set(this.breakpointSourceKey(source), { source, breakpoints: runtimeBreakpoints });
         this.client?.setBreakpoints(source, runtimeBreakpoints);
-
-        for (const breakpoint of runtimeBreakpoints) {
-          const behavior = breakpoint.condition
-            ? ` condition=${breakpoint.condition}`
-            : breakpoint.hitCondition
-              ? ` hitCount=${breakpoint.hitCondition}`
-              : breakpoint.logMessage
-                ? ` logMessage=${breakpoint.logMessage}`
-                : '';
-          this.event('output', {
-            category: 'console',
-            output: `XPscript breakpoint ${this.fileName(source)}:${breakpoint.line}${behavior}\n`
-          });
-        }
 
         this.respond(request, {
           breakpoints: requested.map((item, index) => {
@@ -203,13 +190,34 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         return;
       }
 
-      case 'configurationDone':
+      case 'configurationDone': {
         this.respond(request);
+        const configured = [...this.breakpointSets.values()];
+        if (configured.length === 0) {
+          this.event('output', { category: 'console', output: 'XPscript debugger: no source breakpoints were received from VS Code.\n' });
+        } else {
+          for (const set of configured) {
+            for (const breakpoint of set.breakpoints) {
+              const suffix = breakpoint.condition
+                ? ` condition=${breakpoint.condition}`
+                : breakpoint.hitCondition
+                  ? ` hitCount=${breakpoint.hitCondition}`
+                  : breakpoint.logMessage
+                    ? ` logMessage=${breakpoint.logMessage}`
+                    : '';
+              this.event('output', {
+                category: 'console',
+                output: `XPscript configured breakpoint ${this.fileName(set.source)}:${breakpoint.line}${suffix}\n`
+              });
+            }
+          }
+        }
         if (this.heldEntryStop) {
           this.heldEntryStop = false;
           this.client?.continue();
         }
         return;
+      }
 
       case 'threads':
         this.respond(request, { threads: [{ id: 1, name: 'XPscript main' }] });
