@@ -35,8 +35,15 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
   public handleMessage(message: any): void {
     if (message?.type === 'request' && message.command === 'setBreakpoints') {
       const source = String(message.arguments?.source?.path ?? message.arguments?.source?.name ?? '');
-      const breakpoints = Array.isArray(message.arguments?.breakpoints) ? message.arguments.breakpoints : [];
-      const details = breakpoints.map((breakpoint: any) => {
+      const requested = Array.isArray(message.arguments?.breakpoints) ? message.arguments.breakpoints : [];
+      const legacyLines = Array.isArray(message.arguments?.lines)
+        ? message.arguments.lines.map((value: unknown) => Number(value)).filter((value: number) => Number.isFinite(value) && value > 0)
+        : [];
+      const effectiveBreakpoints = requested.length > 0
+        ? requested
+        : legacyLines.map((line: number) => ({ line }));
+
+      const details = effectiveBreakpoints.map((breakpoint: any) => {
         const line = Number(breakpoint?.line ?? 0);
         const condition = String(breakpoint?.condition ?? '').trim();
         const hitCondition = String(breakpoint?.hitCondition ?? '').trim();
@@ -57,22 +64,34 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
         event: 'output',
         body: {
           category: 'console',
-          output: `XPscript DAP setBreakpoints ${path.basename(source) || '<unknown>'}: ${details || '<empty>'}.\n`
+          output: `XPscript DAP setBreakpoints ${path.basename(source) || '<unknown>'}: breakpoints=${requested.length}, lines=${legacyLines.length}${details ? ` -> ${details}` : ''}.\n`
         }
       });
+
+      if (requested.length === 0 && legacyLines.length > 0) {
+        message = {
+          ...message,
+          arguments: {
+            ...message.arguments,
+            breakpoints: effectiveBreakpoints
+          }
+        };
+      }
     }
 
     if (message?.type === 'request' && (message.command === 'launch' || message.command === 'attach')) {
       this.installStartupBreakpoints(
         message.arguments?.startupBreakpoints,
-        Number(message.arguments?.startupVSCodeBreakpointCount ?? 0)
+        Number(message.arguments?.startupVSCodeBreakpointCount ?? 0),
+        message.arguments?.startupBreakpointShapes
       );
     }
     this.inner.handleMessage(message);
   }
 
-  private installStartupBreakpoints(value: unknown, rawVSCodeCount: number): void {
+  private installStartupBreakpoints(value: unknown, rawVSCodeCount: number, shapeValue: unknown): void {
     const startup = Array.isArray(value) ? value as XPScriptStartupBreakpoint[] : [];
+    const shapes = Array.isArray(shapeValue) ? shapeValue.map(item => String(item)) : [];
     const grouped = new Map<string, XPScriptStartupBreakpoint[]>();
 
     for (const breakpoint of startup) {
@@ -100,6 +119,15 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
         output: `XPscript VS Code breakpoint objects: ${rawVSCodeCount}; startup snapshot: ${startup.length}.\n`
       }
     });
+
+    for (const shape of shapes) {
+      this.emitter.fire({
+        seq: 0,
+        type: 'event',
+        event: 'output',
+        body: { category: 'console', output: `XPscript breakpoint object ${shape}\n` }
+      });
+    }
 
     for (const breakpoints of grouped.values()) {
       const source = breakpoints[0].source;
