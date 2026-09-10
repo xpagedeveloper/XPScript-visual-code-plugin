@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { seedBreakpointRegistry, snapshotRegisteredBreakpoints } from './breakpointRegistry';
+import { detectTargetForProgram, XPScriptTarget } from './sourceTarget';
 
 export interface XPScriptStartupBreakpoint {
   source: string;
@@ -13,7 +14,7 @@ export interface XPScriptDebugConfiguration extends vscode.DebugConfiguration {
   type: 'xpscript';
   request: 'launch' | 'attach';
   program?: string;
-  target?: 'cli' | 'desktop' | 'web' | 'wasm';
+  target?: XPScriptTarget;
   host?: string;
   port?: number;
   token?: string;
@@ -39,10 +40,10 @@ function captureBreakpoints(config: XPScriptDebugConfiguration): void {
 }
 
 export class XPScriptDebugConfigurationProvider implements vscode.DebugConfigurationProvider {
-  resolveDebugConfiguration(
+  async resolveDebugConfiguration(
     _folder: vscode.WorkspaceFolder | undefined,
     config: XPScriptDebugConfiguration
-  ): vscode.ProviderResult<vscode.DebugConfiguration> {
+  ): Promise<vscode.DebugConfiguration | undefined> {
     if (!config.type && !config.request && !config.name) {
       const editor = vscode.window.activeTextEditor;
       if (editor?.document.languageId === 'xpscript') {
@@ -51,7 +52,7 @@ export class XPScriptDebugConfigurationProvider implements vscode.DebugConfigura
         config.request = 'launch';
         config.program = '${file}';
         config.target = 'cli';
-        config.stopOnEntry = false;
+        config.stopOnEntry = true;
       }
     }
 
@@ -60,9 +61,16 @@ export class XPScriptDebugConfigurationProvider implements vscode.DebugConfigura
         void vscode.window.showErrorMessage('XPscript debugger requires a program for launch requests.');
         return undefined;
       }
-      config.target ??= 'cli';
+
+      config.stopOnEntry ??= true;
+      const configuredTarget = config.target ?? 'cli';
+      const detectedTarget = await detectTargetForProgram(config.program);
+      config.target = configuredTarget === 'cli' ? detectedTarget : configuredTarget;
+
       if (config.target === 'web' || config.target === 'wasm') {
-        void vscode.window.showErrorMessage(`XPscript ${config.target} debugging currently uses an attach configuration.`);
+        void vscode.window.showErrorMessage(
+          `XPscript detected this source as ${config.target}. ${config.target} debugging currently uses an attach configuration.`
+        );
         return undefined;
       }
       captureBreakpoints(config);
