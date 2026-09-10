@@ -7,6 +7,7 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
   private readonly inner = new XPScriptDebugAdapter();
   private readonly emitter = new vscode.EventEmitter<any>();
   private syntheticSequence = -1;
+  private programPath = '';
 
   public readonly onDidSendMessage = this.emitter.event;
 
@@ -23,6 +24,28 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
               if (!breakpoint || typeof breakpoint !== 'object') return breakpoint;
               const { source: _source, ...rest } = breakpoint;
               return rest;
+            })
+          }
+        };
+      }
+
+      if (message?.type === 'response' && message?.command === 'stackTrace' && Array.isArray(message?.body?.stackFrames)) {
+        message = {
+          ...message,
+          body: {
+            ...message.body,
+            stackFrames: message.body.stackFrames.map((frame: any) => {
+              const sourcePath = String(frame?.source?.path ?? '');
+              if (!sourcePath) return frame;
+              const resolved = this.resolveSourcePath(sourcePath);
+              return {
+                ...frame,
+                source: {
+                  ...frame.source,
+                  name: path.basename(resolved),
+                  path: resolved
+                }
+              };
             })
           }
         };
@@ -51,12 +74,21 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
     }
 
     if (message?.type === 'request' && (message.command === 'launch' || message.command === 'attach')) {
+      const program = String(message.arguments?.program ?? '').trim();
+      if (program) this.programPath = path.normalize(program);
       this.installStartupBreakpoints(
         message.arguments?.startupBreakpoints,
         message.arguments?.startupNonSourceBreakpointNames
       );
     }
     this.inner.handleMessage(message);
+  }
+
+  private resolveSourcePath(sourcePath: string): string {
+    if (path.isAbsolute(sourcePath)) return path.normalize(sourcePath);
+    if (this.programPath) return path.resolve(path.dirname(this.programPath), sourcePath);
+    const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    return workspace ? path.resolve(workspace, sourcePath) : path.normalize(sourcePath);
   }
 
   private installStartupBreakpoints(value: unknown, nonSourceValue: unknown): void {
