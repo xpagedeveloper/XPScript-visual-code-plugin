@@ -31,6 +31,12 @@ const addIfMissing = item => {
 const cleanCell = value => value.trim().replace(/^`|`$/g, '').replace(/\\\|/g, '|');
 const splitRow = line => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(cleanCell);
 const memberName = raw => raw.replace(/^`|`$/g, '').replace(/\(.*$/, '').trim();
+const propertyNames = raw => {
+  const tickNames = [...raw.matchAll(/`([A-Za-z_]\\w*)`/g)].map(match => match[1]);
+  if (tickNames.length > 0) return tickNames;
+  const name = memberName(raw);
+  return /^[A-Za-z_]\\w*$/.test(name) ? [name] : [];
+};
 const typeName = raw => {
   const tick = raw.match(/`([A-Za-z_]\w*)`/);
   if (tick) return tick[1];
@@ -77,26 +83,27 @@ function syncNotesReference() {
     for (i += 2; i < lines.length && lines[i].trim().startsWith('|'); i++) {
       const cells = splitRow(lines[i]);
       if (propertyIdx >= 0) {
-        const name = memberName(cells[propertyIdx] || '');
-        if (!name) continue;
-        if (!/^[A-Za-z_]\w*$/.test(name))
-          throw new Error(`docs/notes-c-api.md:${i + 1}: property rows must contain exactly one public member name; got "${cells[propertyIdx]}".`);
+        const names = propertyNames(cells[propertyIdx] || '');
+        if (names.length === 0)
+          throw new Error(`docs/notes-c-api.md:${i + 1}: property row contains no valid public member names; got "${cells[propertyIdx]}".`);
         const returnType = typeName(cells[typeIdx] || '');
         const writable = /read\/write|read-write/i.test(cells[accessIdx] || '');
-        add({
-          name,
-          qualifiedName: `${owner}.${name}`,
-          owner,
-          kind: 'property',
-          syntax: `${owner}.${name}`,
-          parameters: '',
-          description: cells[descriptionIdx] || `${owner}.${name}.`,
-          ...(returnType ? { returnType } : {}),
-          ...(writable ? { writable: true } : {}),
-          source: 'docs/notes-c-api.md',
-          section: subsection || owner
-        });
-        added++;
+        for (const name of names) {
+          add({
+            name,
+            qualifiedName: `${owner}.${name}`,
+            owner,
+            kind: 'property',
+            syntax: `${owner}.${name}`,
+            parameters: '',
+            description: cells[descriptionIdx] || `${owner}.${name}.`,
+            ...(returnType ? { returnType } : {}),
+            ...(writable ? { writable: true } : {}),
+            source: 'docs/notes-c-api.md',
+            section: subsection || owner
+          });
+          added++;
+        }
       } else {
         const raw = cells[memberIdx] || '';
         const name = memberName(raw);
