@@ -89,7 +89,11 @@ export class XPScriptRuntimeClient {
     throw lastError instanceof Error ? lastError : new Error(`Unable to connect to XPscript debugger at ${host}:${port}.`);
   }
 
-  public setBreakpoints(source: string, lines: number[]): void { this.send({ command: 'setBreakpoints', source, lines }); }
+  public setBreakpoints(source: string, lines: number[]): void {
+    const normalized = source.replace(/\\/g, '/');
+    const runtimeSource = normalized.slice(normalized.lastIndexOf('/') + 1);
+    this.send({ command: 'setBreakpoints', source: runtimeSource, lines });
+  }
   public setDataBreakpoints(names: string[]): void { this.send({ command: 'setDataBreakpoints', names }); }
   public setExceptionBreakpoints(filters: string[]): void { this.send({ command: 'setExceptionBreakpoints', filters }); }
 
