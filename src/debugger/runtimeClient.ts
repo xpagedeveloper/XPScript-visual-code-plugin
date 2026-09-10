@@ -87,6 +87,8 @@ export class XPScriptRuntimeClient {
   private connectedOnce = false;
   private closing = false;
   private completed = false;
+  private pendingBreakpointAcks = 0;
+  private queuedContinue = false;
 
   constructor(private readonly token = '') {}
 
@@ -103,6 +105,8 @@ export class XPScriptRuntimeClient {
     let lastError: unknown;
     this.closing = false;
     this.completed = false;
+    this.pendingBreakpointAcks = 0;
+    this.queuedContinue = false;
     while (Date.now() < deadline) {
       try {
         await this.connectOnce(host, port, Math.max(250, deadline - Date.now()));
@@ -119,7 +123,13 @@ export class XPScriptRuntimeClient {
   public setBreakpoints(source: string, breakpoints: RuntimeBreakpoint[]): void {
     const normalized = source.replace(/\\/g, '/');
     const runtimeSource = normalized.slice(normalized.lastIndexOf('/') + 1);
-    this.send({ command: 'setBreakpoints', source: runtimeSource, breakpoints });
+    this.pendingBreakpointAcks++;
+    try {
+      this.send({ command: 'setBreakpoints', source: runtimeSource, breakpoints });
+    } catch (error) {
+      this.pendingBreakpointAcks = Math.max(0, this.pendingBreakpointAcks - 1);
+      throw error;
+    }
   }
 
   public setDataBreakpoints(names: string[]): void { this.send({ command: 'setDataBreakpoints', names }); }
@@ -163,7 +173,13 @@ export class XPScriptRuntimeClient {
     });
   }
 
-  public continue(): void { this.send({ command: 'continue' }); }
+  public continue(): void {
+    if (this.pendingBreakpointAcks > 0) {
+      this.queuedContinue = true;
+      return;
+    }
+    this.send({ command: 'continue' });
+  }
   public next(): void { this.send({ command: 'next' }); }
   public stepIn(): void { this.send({ command: 'stepIn' }); }
   public stepOut(): void { this.send({ command: 'stepOut' }); }
@@ -273,6 +289,18 @@ export class XPScriptRuntimeClient {
       if (event.type === 'complete') {
         this.completed = true;
         this.closing = true;
+      }
+      if (event.type === 'breakpoints') {
+        this.pendingBreakpointAcks = Math.max(0, this.pendingBreakpointAcks - 1);
+        if (this.pendingBreakpointAcks === 0 && this.queuedContinue) {
+          this.queuedContinue = false;
+          this.send({ command: 'continue' });
+        }
+      }
+      if (event.type === 'breakpointDiagnostic') {
+        const message = String((event as RuntimeMessage).message ?? '');
+        this.emit({ type: 'debugOutput', output: message, source: '', line: 0, threadId: 1 });
+        return;
       }
       if (event.type === 'valueHistory' && this.historyWaiters.length > 0) {
         const waiter = this.historyWaiters.shift()!;
