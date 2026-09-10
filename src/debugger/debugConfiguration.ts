@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { snapshotRegisteredBreakpoints } from './breakpointRegistry';
 
 export interface XPScriptStartupBreakpoint {
   source: string;
@@ -23,20 +24,7 @@ export interface XPScriptDebugConfiguration extends vscode.DebugConfiguration {
 }
 
 function snapshotBreakpoints(): XPScriptStartupBreakpoint[] {
-  const result: XPScriptStartupBreakpoint[] = [];
-  for (const breakpoint of vscode.debug.breakpoints) {
-    if (!(breakpoint instanceof vscode.SourceBreakpoint)) continue;
-    const source = breakpoint.location.uri.fsPath;
-    if (!/\.xps(?:cript)?$/i.test(source)) continue;
-    result.push({
-      source,
-      line: breakpoint.location.range.start.line + 1,
-      condition: breakpoint.condition?.trim() || undefined,
-      hitCondition: breakpoint.hitCondition?.trim() || undefined,
-      logMessage: breakpoint.logMessage?.trim() || undefined
-    });
-  }
-  return result;
+  return snapshotRegisteredBreakpoints().map(item => ({ ...item }));
 }
 
 export class XPScriptDebugConfigurationProvider implements vscode.DebugConfigurationProvider {
