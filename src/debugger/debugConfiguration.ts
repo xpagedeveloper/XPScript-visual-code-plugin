@@ -23,6 +23,7 @@ export interface XPScriptDebugConfiguration extends vscode.DebugConfiguration {
   startupBreakpoints?: XPScriptStartupBreakpoint[];
   startupVSCodeBreakpointCount?: number;
   startupBreakpointShapes?: string[];
+  startupNonSourceBreakpointNames?: string[];
 }
 
 function describeBreakpoint(value: vscode.Breakpoint, index: number): string {
@@ -50,6 +51,11 @@ function snapshotBreakpoints(): XPScriptStartupBreakpoint[] {
 function captureBreakpointDebugInfo(config: XPScriptDebugConfiguration): void {
   config.startupVSCodeBreakpointCount = vscode.debug.breakpoints.length;
   config.startupBreakpointShapes = vscode.debug.breakpoints.map((breakpoint, index) => describeBreakpoint(breakpoint, index));
+  config.startupNonSourceBreakpointNames = vscode.debug.breakpoints
+    .map(breakpoint => breakpoint as any)
+    .filter(candidate => !candidate?.location)
+    .map(candidate => String(candidate?.functionName ?? '').trim())
+    .filter(Boolean);
   config.startupBreakpoints = snapshotBreakpoints();
 }
 
