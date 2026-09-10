@@ -79,6 +79,8 @@ function syncNotesReference() {
       if (propertyIdx >= 0) {
         const name = memberName(cells[propertyIdx] || '');
         if (!name) continue;
+        if (!/^[A-Za-z_]\w*$/.test(name))
+          throw new Error(`docs/notes-c-api.md:${i + 1}: property rows must contain exactly one public member name; got "${cells[propertyIdx]}".`);
         const returnType = typeName(cells[typeIdx] || '');
         const writable = /read\/write|read-write/i.test(cells[accessIdx] || '');
         add({
@@ -99,6 +101,8 @@ function syncNotesReference() {
         const raw = cells[memberIdx] || '';
         const name = memberName(raw);
         if (!name) continue;
+        if (!/^[A-Za-z_]\w*$/.test(name))
+          throw new Error(`docs/notes-c-api.md:${i + 1}: method rows must contain exactly one public member name; got "${raw}".`);
         const returnType = typeName(cells[returnIdx] || '');
         add({
           name,
@@ -187,3 +191,4 @@ const catalog = [...byKey.values()].sort((a, b) => a.qualifiedName.localeCompare
 const header = source.slice(0, jsonStart);
 fs.writeFileSync(outFile, `${header}${JSON.stringify(catalog, null, 2)};\n`);
 console.log(`Synced current public API: ${notesReference} Notes reference rows, ${notesSamples} sample-only Notes members, ${notesConstants} NotesConst aliases. Catalog contains ${catalog.length} items.`);
+if (notesReference === 0) throw new Error('docs/notes-c-api.md produced no IntelliSense entries; refusing to build a stale Notes catalog.');
