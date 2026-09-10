@@ -3,6 +3,7 @@ import { execFile } from 'child_process';
 import * as path from 'path';
 import { getCompletions, getHover, getSignatureHelp } from './languageService';
 import { semanticTokensLegend, XPScriptSemanticTokensProvider } from './semanticTokens';
+import { provideSnippetCompletions } from './snippetCompletion';
 import { checkForUpdates, scheduleAutomaticUpdateCheck } from './updater';
 import { XPScriptDebugConfigurationProvider } from './debugger/debugConfiguration';
 import { XPScriptDebugAdapterDescriptorFactory } from './debugger/debugAdapterBootstrap';
@@ -293,6 +294,7 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   const completions = vscode.languages.registerCompletionItemProvider(selector, { provideCompletionItems: getCompletions }, '.', '(', ',', ' ');
+  const snippetCompletions = vscode.languages.registerCompletionItemProvider(selector, { provideCompletionItems: provideSnippetCompletions }, '.');
   const hover = vscode.languages.registerHoverProvider(selector, { provideHover: getHover });
   const signatures = vscode.languages.registerSignatureHelpProvider(selector, { provideSignatureHelp: getSignatureHelp }, '(', ',');
   const semanticTokens = vscode.languages.registerDocumentSemanticTokensProvider(selector, new XPScriptSemanticTokensProvider(), semanticTokensLegend);
@@ -360,6 +362,7 @@ export function activate(context: vscode.ExtensionContext): void {
     addSourceLaunch,
     quickActions,
     completions,
+    snippetCompletions,
     hover,
     signatures,
     semanticTokens,
