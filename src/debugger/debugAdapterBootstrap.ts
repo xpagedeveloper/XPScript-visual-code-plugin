@@ -15,6 +15,9 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
     this.inner.onDidSendMessage(message => {
       if (message?.type === 'response' && Number(message?.request_seq ?? 0) < 0) return;
 
+      if (message?.type === 'event' && message?.event === 'output'
+        && String(message?.body?.output ?? '').startsWith('XPscript configured breakpoint ')) return;
+
       if (message?.type === 'response' && message?.command === 'setBreakpoints' && Array.isArray(message?.body?.breakpoints)) {
         message = {
           ...message,
