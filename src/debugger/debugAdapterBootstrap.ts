@@ -13,11 +13,58 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
   public constructor() {
     this.inner.onDidSendMessage(message => {
       if (message?.type === 'response' && Number(message?.request_seq ?? 0) < 0) return;
+
+      // Keep VS Code's original source identity. The inner adapter used to replace
+      // source.name with "file.xps:line", which can detach a persisted source
+      // breakpoint from the editor document on the next debug session.
+      if (message?.type === 'response' && message?.command === 'setBreakpoints' && Array.isArray(message?.body?.breakpoints)) {
+        message = {
+          ...message,
+          body: {
+            ...message.body,
+            breakpoints: message.body.breakpoints.map((breakpoint: any) => {
+              if (!breakpoint || typeof breakpoint !== 'object') return breakpoint;
+              const { source: _source, ...rest } = breakpoint;
+              return rest;
+            })
+          }
+        };
+      }
+
       this.emitter.fire(message);
     });
   }
 
   public handleMessage(message: any): void {
+    if (message?.type === 'request' && message.command === 'setBreakpoints') {
+      const source = String(message.arguments?.source?.path ?? message.arguments?.source?.name ?? '');
+      const breakpoints = Array.isArray(message.arguments?.breakpoints) ? message.arguments.breakpoints : [];
+      const details = breakpoints.map((breakpoint: any) => {
+        const line = Number(breakpoint?.line ?? 0);
+        const condition = String(breakpoint?.condition ?? '').trim();
+        const hitCondition = String(breakpoint?.hitCondition ?? '').trim();
+        const logMessage = String(breakpoint?.logMessage ?? '').trim();
+        const suffix = condition
+          ? ` condition=${condition}`
+          : hitCondition
+            ? ` hitCount=${hitCondition}`
+            : logMessage
+              ? ` logMessage=${logMessage}`
+              : '';
+        return `${line}${suffix}`;
+      }).join(', ');
+
+      this.emitter.fire({
+        seq: 0,
+        type: 'event',
+        event: 'output',
+        body: {
+          category: 'console',
+          output: `XPscript DAP setBreakpoints ${path.basename(source) || '<unknown>'}: ${details || '<empty>'}.\n`
+        }
+      });
+    }
+
     if (message?.type === 'request' && (message.command === 'launch' || message.command === 'attach')) {
       this.installStartupBreakpoints(message.arguments?.startupBreakpoints);
     }
