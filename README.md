@@ -4,12 +4,40 @@ Visual Studio Code language support for XPscript.
 
 The extension provides:
 
-- IntelliSense/autocomplete for the documented XPscript API
+- IntelliSense/typeahead for the documented XPscript API
 - parameter and help text from the XPscript documentation
 - hover help and signature help
+- workspace-aware completion for XPscript declarations
 - semantic syntax highlighting for XPscript classes, functions, methods, properties, variables and parameters
 - highlighting for verified `Notes*` classes and members
 - automatic XPscript language activation for `.xps` and `.xpscript` files
+- integrated XPscript debugging
+
+## Typeahead / IntelliSense
+
+XPscript typeahead is generated from the XPscript documentation when the extension is built. The generated catalog is packaged inside the VSIX, so normal users do not need a local checkout of the XPscript repository.
+
+Typeahead includes documented global functions, classes, methods, properties, constants and parameters. Recent APIs that are not represented by the generic documentation tables are added during the catalog build so they can still appear in completion, hover and signature help.
+
+Examples include:
+
+- `Console` and its input/output, cursor and color APIs
+- `Debugger.Print` and `Debugger.UpdateVar`
+- `Application.Executable` metadata
+- `NotesDBDirectory`
+- `ArraySort`
+
+Member completion is available after typing a dot. For example:
+
+```xpscript
+Console.
+Debugger.
+Application.Executable.
+```
+
+The extension can also index declarations in the current workspace when **XPscript: Index Workspace** is enabled. This allows your own XPscript classes, functions, variables and members to participate in typeahead together with the built-in API catalog.
+
+If a newly documented XPscript API does not appear in typeahead, the extension itself must be rebuilt so the generated catalog is refreshed. Normal users should install the newest VSIX rather than configure a local XPscript repository path.
 
 ## Install
 
@@ -20,7 +48,7 @@ Open the repository's **Releases** page on GitHub and download the `.vsix` file 
 The release asset is named similar to:
 
 ```text
-xpscript-0.1.0.vsix
+xpscript-0.2.23.vsix
 ```
 
 ### 2. Install in Visual Studio Code
@@ -44,13 +72,13 @@ Extensions: Install from VSIX...
 If the `code` command is available in your shell:
 
 ```bash
-code --install-extension xpscript-0.1.0.vsix
+code --install-extension xpscript-0.2.23.vsix
 ```
 
 To install or replace an existing version without a confirmation prompt:
 
 ```bash
-code --install-extension xpscript-0.1.0.vsix --force
+code --install-extension xpscript-0.2.23.vsix --force
 ```
 
 ## `.xps` files
@@ -63,7 +91,7 @@ Opening a file such as:
 application.xps
 ```
 
-causes Visual Studio Code to select the `xpscript` language automatically. The extension activates through `onLanguage:xpscript`, so autocomplete, hover help, signature help and semantic highlighting become available without running a command manually.
+causes Visual Studio Code to select the `xpscript` language automatically, so autocomplete, hover help, signature help and semantic highlighting become available without running a command manually.
 
 The extension also supports `.xpscript` files.
 
@@ -71,9 +99,9 @@ You can verify the selected language in the Visual Studio Code status bar. It sh
 
 ## Update
 
-VS Code does not automatically update extensions that were manually installed from a VSIX by default.
+The extension can check GitHub Releases for newer versions when **XPscript: Auto Update** is enabled. Installation still requires user approval.
 
-To update XPscript support:
+To update manually:
 
 1. Open the repository's **Releases** page.
 2. Download the `.vsix` file from the newest release.
