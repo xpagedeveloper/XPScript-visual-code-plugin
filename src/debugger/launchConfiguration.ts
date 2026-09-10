@@ -21,7 +21,7 @@ function defaultLaunchFile(): string {
         name: 'Debug current XPscript file',
         program: '${file}',
         target: 'cli',
-        stopOnEntry: false
+        stopOnEntry: true
       }
     ]
   }, null, 2) + '\n';
@@ -166,7 +166,7 @@ export async function addCurrentSourceLaunchConfiguration(): Promise<void> {
     name: `Debug ${path.basename(document.uri.fsPath)}`,
     program,
     target: 'cli',
-    stopOnEntry: false
+    stopOnEntry: true
   };
   const serialized = JSON.stringify(configuration, null, 2)
     .split('\n')
