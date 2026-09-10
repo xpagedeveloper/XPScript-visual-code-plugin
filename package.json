@@ -2,7 +2,7 @@
   "name": "xpscript",
   "displayName": "XPscript",
   "description": "XPscript language support with repository-driven IntelliSense.",
-  "version": "0.2.29",
+  "version": "0.2.30",
   "publisher": "xpagedeveloper",
   "repository": {
     "type": "git",
@@ -255,13 +255,7 @@
           "markdownDescription": "Full path to the XPscript CLI executable used by **Run** and **Debug**. Leave empty to use `xpscript` from PATH. You can also run **XPscript: Select XPscript Executable** from the Command Palette."
         }
       }
-    },
-    "snippets": [
-      {
-        "language": "xpscript",
-        "path": "./snippets/generated/xpscript.code-snippets"
-      }
-    ]
+    }
   },
   "scripts": {
     "generate:catalog": "node scripts/generate-catalog.mjs && node scripts/augment-catalog.mjs && node scripts/sync-current-public-api.mjs && node scripts/apply-astro-docs.mjs && node scripts/apply-parameter-help.mjs && node scripts/filter-removed-api.mjs && node scripts/augment-console-catalog.mjs && node scripts/augment-recent-api.mjs",
