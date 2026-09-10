@@ -1,0 +1,4 @@
+' Create a basic NotesSession and print the current user's common username
+Dim session As New NotesSession()
+
+Print session.CommonUsername
