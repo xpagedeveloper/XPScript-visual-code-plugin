@@ -6,6 +6,12 @@ import { semanticTokensLegend, XPScriptSemanticTokensProvider } from './semantic
 import { checkForUpdates, scheduleAutomaticUpdateCheck } from './updater';
 import { XPScriptDebugConfigurationProvider } from './debugger/debugConfiguration';
 import { XPScriptDebugAdapterDescriptorFactory } from './debugger/debugAdapterBootstrap';
+import {
+  applyBreakpointChanges,
+  seedBreakpointRegistry,
+  snapshotRegisteredBreakpoints,
+  registeredBreakpointCount
+} from './debugger/breakpointRegistry';
 
 function canStartExecutable(executable: string): Promise<boolean> {
   return new Promise(resolve => execFile(executable, ['--help'], { windowsHide: true, timeout: 5000 }, error => resolve(!error)));
@@ -92,16 +98,15 @@ function isXPScriptSourceBreakpoint(value: vscode.Breakpoint): value is vscode.S
   return extension === '.xps' || extension === '.xpscript';
 }
 
-async function syncBreakpointsFromVSCode(session: vscode.DebugSession, affectedSources?: Set<string>): Promise<number> {
+async function syncBreakpointsFromRegistry(session: vscode.DebugSession, affectedSources?: Set<string>): Promise<number> {
   if (session.type !== 'xpscript' || session.configuration.noDebug) return 0;
 
-  const grouped = new Map<string, vscode.SourceBreakpoint[]>();
-  for (const breakpoint of vscode.debug.breakpoints) {
-    if (!isXPScriptSourceBreakpoint(breakpoint)) continue;
-    const source = path.normalize(breakpoint.location.uri.fsPath);
-    const key = source.toLowerCase();
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key)!.push(breakpoint);
+  const grouped = new Map<string, ReturnType<typeof snapshotRegisteredBreakpoints>>();
+  for (const breakpoint of snapshotRegisteredBreakpoints()) {
+    const key = path.normalize(breakpoint.source).toLowerCase();
+    const list = grouped.get(key) ?? [];
+    list.push(breakpoint);
+    grouped.set(key, list);
   }
 
   const sources = affectedSources ? [...affectedSources] : [...grouped.keys()];
@@ -113,13 +118,13 @@ async function syncBreakpointsFromVSCode(session: vscode.DebugSession, affectedS
   let imported = 0;
   for (const sourceKey of sources) {
     const current = grouped.get(sourceKey) ?? [];
-    const sourcePath = current[0]?.location.uri.fsPath
+    const sourcePath = current[0]?.source
       ?? (program && program.toLowerCase() === sourceKey ? program : sourceKey);
     const breakpoints = current.map(breakpoint => ({
-      line: breakpoint.location.range.start.line + 1,
-      condition: breakpoint.condition?.trim() || undefined,
-      hitCondition: breakpoint.hitCondition?.trim() || undefined,
-      logMessage: breakpoint.logMessage?.trim() || undefined
+      line: breakpoint.line,
+      condition: breakpoint.condition,
+      hitCondition: breakpoint.hitCondition,
+      logMessage: breakpoint.logMessage
     }));
     imported += breakpoints.length;
     try {
@@ -134,7 +139,7 @@ async function syncBreakpointsFromVSCode(session: vscode.DebugSession, affectedS
     }
   }
 
-  vscode.debug.activeDebugConsole.appendLine(`XPscript imported ${imported} breakpoint(s) directly from VS Code.`);
+  vscode.debug.activeDebugConsole.appendLine(`XPscript imported ${imported} breakpoint(s) from XPscript breakpoint registry.`);
   return imported;
 }
 
@@ -242,6 +247,8 @@ export function activate(context: vscode.ExtensionContext): void {
   status.command = 'xpscript.quickActions';
   status.tooltip = 'XPscript run, debug and settings';
 
+  seedBreakpointRegistry(vscode.debug.breakpoints);
+
   const updateStatus = () => {
     const editor = vscode.window.activeTextEditor;
     const xp = editor?.document.languageId === 'xpscript';
@@ -300,19 +307,22 @@ export function activate(context: vscode.ExtensionContext): void {
     if (session.type !== 'xpscript') return;
     diagnostics.clear();
     updateStatus();
-    void syncBreakpointsFromVSCode(session);
+    vscode.debug.activeDebugConsole.appendLine(`XPscript breakpoint registry contains ${registeredBreakpointCount()} breakpoint(s).`);
+    void syncBreakpointsFromRegistry(session);
   });
   const stopSession = vscode.debug.onDidTerminateDebugSession(session => {
     if (session.type === 'xpscript') updateStatus();
   });
   const changedBreakpoints = vscode.debug.onDidChangeBreakpoints(event => {
+    applyBreakpointChanges(event);
+
     const session = vscode.debug.activeDebugSession;
     if (!session || session.type !== 'xpscript' || session.configuration.noDebug) return;
     const affected = new Set<string>();
     for (const breakpoint of [...event.added, ...event.changed, ...event.removed]) {
       if (isXPScriptSourceBreakpoint(breakpoint)) affected.add(path.normalize(breakpoint.location.uri.fsPath).toLowerCase());
     }
-    if (affected.size > 0) void syncBreakpointsFromVSCode(session, affected);
+    if (affected.size > 0) void syncBreakpointsFromRegistry(session, affected);
   });
   const customEvent = vscode.debug.onDidReceiveDebugSessionCustomEvent(event => {
     if (event.session.type === 'xpscript' && event.event === 'stopped') {
