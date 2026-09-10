@@ -1,5 +1,5 @@
 {
-  "name":"xpscript","displayName":"XPscript","description":"XPscript language support with repository-driven IntelliSense.","version":"0.2.23","publisher":"xpagedeveloper","repository":{"type":"git","url":"https://github.com/xpagedeveloper/XPScript-visual-code-plugin.git"},"engines":{"vscode":"^1.95.0"},"categories":["Programming Languages","Debuggers"],"main":"./out/extension.js",
+  "name":"xpscript","displayName":"XPscript","description":"XPscript language support with repository-driven IntelliSense.","version":"0.2.24","publisher":"xpagedeveloper","repository":{"type":"git","url":"https://github.com/xpagedeveloper/XPScript-visual-code-plugin.git"},"engines":{"vscode":"^1.95.0"},"categories":["Programming Languages","Debuggers"],"main":"./out/extension.js",
   "contributes":{
     "languages":[{"id":"xpscript","aliases":["XPscript","xpscript"],"extensions":[".xps",".xpscript"],"configuration":"./language-configuration.json"}],
     "grammars":[{"language":"xpscript","scopeName":"source.xpscript","path":"./syntaxes/xpscript.tmLanguage.json"}],
