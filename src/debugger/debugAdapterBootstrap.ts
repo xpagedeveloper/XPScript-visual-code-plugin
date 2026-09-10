@@ -34,46 +34,17 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
 
   public handleMessage(message: any): void {
     if (message?.type === 'request' && message.command === 'setBreakpoints') {
-      const source = String(message.arguments?.source?.path ?? message.arguments?.source?.name ?? '');
       const requested = Array.isArray(message.arguments?.breakpoints) ? message.arguments.breakpoints : [];
       const legacyLines = Array.isArray(message.arguments?.lines)
         ? message.arguments.lines.map((value: unknown) => Number(value)).filter((value: number) => Number.isFinite(value) && value > 0)
         : [];
-      const effectiveBreakpoints = requested.length > 0
-        ? requested
-        : legacyLines.map((line: number) => ({ line }));
-
-      const details = effectiveBreakpoints.map((breakpoint: any) => {
-        const line = Number(breakpoint?.line ?? 0);
-        const condition = String(breakpoint?.condition ?? '').trim();
-        const hitCondition = String(breakpoint?.hitCondition ?? '').trim();
-        const logMessage = String(breakpoint?.logMessage ?? '').trim();
-        const suffix = condition
-          ? ` condition=${condition}`
-          : hitCondition
-            ? ` hitCount=${hitCondition}`
-            : logMessage
-              ? ` logMessage=${logMessage}`
-              : '';
-        return `${line}${suffix}`;
-      }).join(', ');
-
-      this.emitter.fire({
-        seq: 0,
-        type: 'event',
-        event: 'output',
-        body: {
-          category: 'console',
-          output: `XPscript DAP setBreakpoints ${path.basename(source) || '<unknown>'}: breakpoints=${requested.length}, lines=${legacyLines.length}${details ? ` -> ${details}` : ''}.\n`
-        }
-      });
 
       if (requested.length === 0 && legacyLines.length > 0) {
         message = {
           ...message,
           arguments: {
             ...message.arguments,
-            breakpoints: effectiveBreakpoints
+            breakpoints: legacyLines.map((line: number) => ({ line }))
           }
         };
       }
@@ -82,17 +53,14 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
     if (message?.type === 'request' && (message.command === 'launch' || message.command === 'attach')) {
       this.installStartupBreakpoints(
         message.arguments?.startupBreakpoints,
-        Number(message.arguments?.startupVSCodeBreakpointCount ?? 0),
-        message.arguments?.startupBreakpointShapes,
         message.arguments?.startupNonSourceBreakpointNames
       );
     }
     this.inner.handleMessage(message);
   }
 
-  private installStartupBreakpoints(value: unknown, rawVSCodeCount: number, shapeValue: unknown, nonSourceValue: unknown): void {
+  private installStartupBreakpoints(value: unknown, nonSourceValue: unknown): void {
     const startup = Array.isArray(value) ? value as XPScriptStartupBreakpoint[] : [];
-    const shapes = Array.isArray(shapeValue) ? shapeValue.map(item => String(item)) : [];
     const nonSource = Array.isArray(nonSourceValue)
       ? nonSourceValue.map(item => String(item).trim()).filter(Boolean)
       : [];
@@ -114,15 +82,17 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
       grouped.set(key, list);
     }
 
-    this.emitter.fire({
-      seq: 0,
-      type: 'event',
-      event: 'output',
-      body: {
-        category: 'console',
-        output: `XPscript VS Code breakpoint objects: ${rawVSCodeCount}; startup snapshot: ${startup.length}.\n`
-      }
-    });
+    if (startup.length > 0) {
+      this.emitter.fire({
+        seq: 0,
+        type: 'event',
+        event: 'output',
+        body: {
+          category: 'console',
+          output: `XPscript found ${startup.length} line breakpoint(s).\n`
+        }
+      });
+    }
 
     if (nonSource.length > 0) {
       this.emitter.fire({
@@ -133,15 +103,6 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
           category: 'console',
           output: `XPscript warning: ${nonSource.length} non-line breakpoint(s) will be ignored${nonSource.length ? ` (${nonSource.join(', ')})` : ''}. To create a line breakpoint, click the gutter next to the XPscript line. For a condition, right-click the red breakpoint and choose Edit Breakpoint > Expression.\n`
         }
-      });
-    }
-
-    for (const shape of shapes) {
-      this.emitter.fire({
-        seq: 0,
-        type: 'event',
-        event: 'output',
-        body: { category: 'console', output: `XPscript breakpoint object ${shape}\n` }
       });
     }
 
