@@ -1,7 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const candidates = [process.env.XPSCRIPT_REPO_PATH, process.argv[2], path.resolve('..', 'XPscript'), path.resolve('xpscript-source')].filter(Boolean);
+const candidates = [
+  process.env.XPSCRIPT_REPO_PATH,
+  process.argv[2],
+  path.resolve('..', 'XPscript'),
+  path.resolve('..', 'xpscript', 'XPscript'),
+  path.resolve('xpscript-source')
+].filter(Boolean);
 const repo = candidates.find(p => fs.existsSync(path.join(p, 'docs')));
 const outFile = path.resolve('src/generated/apiCatalog.ts');
 
@@ -128,7 +134,7 @@ const csvItems = [
   { name: 'CsvWriteFile', qualifiedName: 'CsvWriteFile', kind: 'function', syntax: 'CsvWriteFile(document, path [, encoding])', parameters: 'document; path; encoding', description: 'Writes an XPCsvDocument to a file.', source: csvSource, section: csvSection },
 
   { name: 'Parse', qualifiedName: 'XPCsvDocument.Parse', owner: 'XPCsvDocument', kind: 'function', syntax: 'XPCsvDocument.Parse(text [, delimiter [, hasHeaders]])', parameters: 'text; delimiter; hasHeaders', description: 'Parses CSV text.', returnType: 'XPCsvDocument', source: csvSource, section: csvSection },
-  { name: 'ParseBytes', qualifiedName: 'XPCsvDocument.ParseBytes', owner: 'XPCsvDocument', kind: 'function', syntax: 'XPCsvDocument.ParseBytes(bytes, encoding [, delimiter [, hasHeaders]])', parameters: 'bytes; encoding; delimiter; hasHeaders', description: 'Parses CSV bytes using an explicit encoding.', returnType: 'XPCsvDocument', source: csvSource, section: csvSection },
+  { name: 'ParseBytes', qualifiedName: 'XPCsvDocument.ParseBytes', owner: 'XPCsvDocument', kind: 'function', syntax: 'XPCsvDocument.ParseBytes(bytes, encoding [, delimiter [, hasHeaders]])', parameters: 'bytes; encoding; hasHeaders', description: 'Parses CSV bytes using an explicit encoding.', returnType: 'XPCsvDocument', source: csvSource, section: csvSection },
   { name: 'Headers', qualifiedName: 'XPCsvDocument.Headers', owner: 'XPCsvDocument', kind: 'property', syntax: 'doc.Headers', parameters: '', description: 'Indexed and iterable collection of CSV headers.', returnType: 'XPCsvHeaderCollection', source: csvSource, section: csvSection },
   { name: 'Rows', qualifiedName: 'XPCsvDocument.Rows', owner: 'XPCsvDocument', kind: 'property', syntax: 'doc.Rows', parameters: '', description: 'Indexed and iterable collection of CSV rows.', returnType: 'XPCsvRowCollection', source: csvSource, section: csvSection },
   { name: 'RowCount', qualifiedName: 'XPCsvDocument.RowCount', owner: 'XPCsvDocument', kind: 'property', syntax: 'doc.RowCount', parameters: '', description: 'Number of data rows.', source: csvSource, section: csvSection },
