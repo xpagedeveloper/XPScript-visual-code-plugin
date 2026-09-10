@@ -83,15 +83,19 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
       this.installStartupBreakpoints(
         message.arguments?.startupBreakpoints,
         Number(message.arguments?.startupVSCodeBreakpointCount ?? 0),
-        message.arguments?.startupBreakpointShapes
+        message.arguments?.startupBreakpointShapes,
+        message.arguments?.startupNonSourceBreakpointNames
       );
     }
     this.inner.handleMessage(message);
   }
 
-  private installStartupBreakpoints(value: unknown, rawVSCodeCount: number, shapeValue: unknown): void {
+  private installStartupBreakpoints(value: unknown, rawVSCodeCount: number, shapeValue: unknown, nonSourceValue: unknown): void {
     const startup = Array.isArray(value) ? value as XPScriptStartupBreakpoint[] : [];
     const shapes = Array.isArray(shapeValue) ? shapeValue.map(item => String(item)) : [];
+    const nonSource = Array.isArray(nonSourceValue)
+      ? nonSourceValue.map(item => String(item).trim()).filter(Boolean)
+      : [];
     const grouped = new Map<string, XPScriptStartupBreakpoint[]>();
 
     for (const breakpoint of startup) {
@@ -119,6 +123,18 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
         output: `XPscript VS Code breakpoint objects: ${rawVSCodeCount}; startup snapshot: ${startup.length}.\n`
       }
     });
+
+    if (nonSource.length > 0) {
+      this.emitter.fire({
+        seq: 0,
+        type: 'event',
+        event: 'output',
+        body: {
+          category: 'console',
+          output: `XPscript warning: ${nonSource.length} non-line breakpoint(s) will be ignored${nonSource.length ? ` (${nonSource.join(', ')})` : ''}. To create a line breakpoint, click the gutter next to the XPscript line. For a condition, right-click the red breakpoint and choose Edit Breakpoint > Expression.\n`
+        }
+      });
+    }
 
     for (const shape of shapes) {
       this.emitter.fire({
