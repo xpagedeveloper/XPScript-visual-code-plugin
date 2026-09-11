@@ -401,9 +401,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
 
   private async launch(config: XPScriptDebugConfig): Promise<void> {
     this.config = config;
-    this.globalConditionBreakpoints = (config.startupNonSourceBreakpointNames ?? [])
-      .map(value => String(value).trim())
-      .filter(Boolean);
+    this.mergeStartupGlobalConditions(config.startupNonSourceBreakpointNames);
     this.processExited = false;
     this.socketDisconnected = false;
     if (!config.program) throw new Error('XPscript launch requires a program.');
@@ -471,9 +469,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
 
   private async attach(config: XPScriptDebugConfig): Promise<void> {
     this.config = config;
-    this.globalConditionBreakpoints = (config.startupNonSourceBreakpointNames ?? [])
-      .map(value => String(value).trim())
-      .filter(Boolean);
+    this.mergeStartupGlobalConditions(config.startupNonSourceBreakpointNames);
     this.processExited = false;
     this.socketDisconnected = false;
     if (!config.port) throw new Error('XPscript attach requires a port.');
@@ -526,6 +522,21 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
     this.client = client;
     for (const item of this.breakpointSets.values()) client.setBreakpoints(item.source, item.breakpoints);
     client.setGlobalConditionBreakpoints(this.globalConditionBreakpoints);
+  }
+
+  private mergeStartupGlobalConditions(value: unknown): void {
+    const startup = Array.isArray(value)
+      ? value.map(item => String(item ?? '').trim()).filter(Boolean)
+      : [];
+    if (startup.length === 0) return;
+
+    const seen = new Set(this.globalConditionBreakpoints.map(item => item.toLowerCase()));
+    for (const condition of startup) {
+      const key = condition.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      this.globalConditionBreakpoints.push(condition);
+    }
   }
 
   private handleStopped(event: RuntimeStoppedEvent): void {
