@@ -79,10 +79,8 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
     if (message?.type === 'request' && (message.command === 'launch' || message.command === 'attach')) {
       const program = String(message.arguments?.program ?? '').trim();
       if (program) this.programPath = path.normalize(program);
-      this.installStartupBreakpoints(
-        message.arguments?.startupBreakpoints,
-        message.arguments?.startupNonSourceBreakpointNames
-      );
+      this.installStartupBreakpoints(message.arguments?.startupBreakpoints);
+      this.installStartupGlobalConditions(message.arguments?.startupNonSourceBreakpointNames);
     }
     this.inner.handleMessage(message);
   }
@@ -94,11 +92,8 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
     return workspace ? path.resolve(workspace, sourcePath) : path.normalize(sourcePath);
   }
 
-  private installStartupBreakpoints(value: unknown, nonSourceValue: unknown): void {
+  private installStartupBreakpoints(value: unknown): void {
     const startup = Array.isArray(value) ? value as XPScriptStartupBreakpoint[] : [];
-    const nonSource = Array.isArray(nonSourceValue)
-      ? nonSourceValue.map(item => String(item).trim()).filter(Boolean)
-      : [];
     const grouped = new Map<string, XPScriptStartupBreakpoint[]>();
 
     for (const breakpoint of startup) {
@@ -115,34 +110,6 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
         logMessage: breakpoint.logMessage?.trim() || undefined
       });
       grouped.set(key, list);
-    }
-
-    if (startup.length > 0) {
-      this.emitter.fire({
-        seq: 0,
-        type: 'event',
-        event: 'output',
-        body: {
-          category: 'console',
-          output: `XPscript found ${startup.length} line breakpoint(s).\n`
-        }
-      });
-    }
-
-    if (nonSource.length > 0) {
-      const warning = `XPscript warning: ${nonSource.length} non-line breakpoint(s) will be ignored${nonSource.length ? ` (${nonSource.join(', ')})` : ''}. To create a line breakpoint, click the gutter next to the XPscript line. For a condition, right-click the red breakpoint and choose Edit Breakpoint > Expression.\n`;
-      this.emitter.fire({
-        seq: 0,
-        type: 'event',
-        event: 'output',
-        body: {
-          category: 'stderr',
-          output: warning,
-          source: this.programPath ? { name: path.basename(this.programPath), path: this.programPath } : undefined,
-          line: this.programPath ? 1 : undefined,
-          column: this.programPath ? 1 : undefined
-        }
-      });
     }
 
     for (const breakpoints of grouped.values()) {
@@ -162,6 +129,22 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
         }
       });
     }
+  }
+
+  private installStartupGlobalConditions(value: unknown): void {
+    const conditions = Array.isArray(value)
+      ? value.map(item => String(item ?? '').trim()).filter(Boolean)
+      : [];
+    if (conditions.length === 0) return;
+
+    this.inner.handleMessage({
+      seq: this.syntheticSequence--,
+      type: 'request',
+      command: 'setFunctionBreakpoints',
+      arguments: {
+        breakpoints: conditions.map(name => ({ name }))
+      }
+    });
   }
 
   public dispose(): void {

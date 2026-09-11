@@ -105,6 +105,31 @@ function isXPScriptSourceBreakpoint(value: vscode.Breakpoint): value is vscode.S
   return extension === '.xps' || extension === '.xpscript';
 }
 
+function isGlobalConditionBreakpoint(value: vscode.Breakpoint): value is vscode.FunctionBreakpoint {
+  return value instanceof vscode.FunctionBreakpoint;
+}
+
+async function syncGlobalConditionBreakpoints(session: vscode.DebugSession): Promise<number> {
+  if (session.type !== 'xpscript' || session.configuration.noDebug) return 0;
+
+  const conditions = vscode.debug.breakpoints
+    .filter(isGlobalConditionBreakpoint)
+    .map(breakpoint => breakpoint.functionName.trim())
+    .filter(Boolean);
+
+  try {
+    await session.customRequest('setFunctionBreakpoints', {
+      breakpoints: conditions.map(name => ({ name }))
+    });
+  } catch (error) {
+    vscode.debug.activeDebugConsole.appendLine(
+      `XPscript global condition breakpoint sync failed: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  return conditions.length;
+}
+
 async function syncBreakpointsFromRegistry(session: vscode.DebugSession, affectedSources?: Set<string>): Promise<number> {
   if (session.type !== 'xpscript' || session.configuration.noDebug) return 0;
 
@@ -249,6 +274,7 @@ function parseDiagnosticOutput(
 export function activate(context: vscode.ExtensionContext): void {
   const selector: vscode.DocumentSelector = { language: 'xpscript' };
   const diagnostics = vscode.languages.createDiagnosticCollection('xpscript');
+  const programOutput = vscode.window.createOutputChannel('XPscript');
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 90);
   status.command = 'xpscript.quickActions';
   status.tooltip = 'XPscript run, debug and settings';
@@ -325,8 +351,10 @@ export function activate(context: vscode.ExtensionContext): void {
   const startSession = vscode.debug.onDidStartDebugSession(session => {
     if (session.type !== 'xpscript') return;
     diagnostics.clear();
+    programOutput.clear();
     updateStatus();
     void syncBreakpointsFromRegistry(session);
+    void syncGlobalConditionBreakpoints(session);
   });
   const stopSession = vscode.debug.onDidTerminateDebugSession(session => {
     if (session.type === 'xpscript') updateStatus();
@@ -337,20 +365,30 @@ export function activate(context: vscode.ExtensionContext): void {
     const session = vscode.debug.activeDebugSession;
     if (!session || session.type !== 'xpscript' || session.configuration.noDebug) return;
     const affected = new Set<string>();
+    let globalConditionsChanged = false;
     for (const breakpoint of [...event.added, ...event.changed, ...event.removed]) {
       if (isXPScriptSourceBreakpoint(breakpoint)) affected.add(path.normalize(breakpoint.location.uri.fsPath).toLowerCase());
+      if (isGlobalConditionBreakpoint(breakpoint)) globalConditionsChanged = true;
     }
     if (affected.size > 0) void syncBreakpointsFromRegistry(session, affected);
+    if (globalConditionsChanged) void syncGlobalConditionBreakpoints(session);
   });
   const customEvent = vscode.debug.onDidReceiveDebugSessionCustomEvent(event => {
-    if (event.session.type === 'xpscript' && event.event === 'stopped') {
+    if (event.session.type !== 'xpscript') return;
+    if (event.event === 'stopped') {
       status.text = '$(debug-pause) XPscript: Paused';
       status.show();
+      return;
+    }
+    if (event.event === 'xpscriptProgramOutput') {
+      const output = String(event.body?.output ?? '');
+      if (output) programOutput.append(output);
     }
   });
 
   context.subscriptions.push(
     diagnostics,
+    programOutput,
     status,
     refresh,
     checkUpdates,

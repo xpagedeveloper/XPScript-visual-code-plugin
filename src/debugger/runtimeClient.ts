@@ -132,6 +132,10 @@ export class XPScriptRuntimeClient {
     }
   }
 
+  public setGlobalConditionBreakpoints(conditions: string[]): void {
+    this.send({ command: 'setGlobalConditionBreakpoints', conditions });
+  }
+
   public setDataBreakpoints(names: string[]): void { this.send({ command: 'setDataBreakpoints', names }); }
   public setExceptionBreakpoints(filters: string[]): void { this.send({ command: 'setExceptionBreakpoints', filters }); }
 

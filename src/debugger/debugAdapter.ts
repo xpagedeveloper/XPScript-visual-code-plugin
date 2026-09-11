@@ -21,6 +21,7 @@ interface XPScriptDebugConfig extends vscode.DebugConfiguration {
   executable?: string;
   args?: string[];
   noDebug?: boolean;
+  startupNonSourceBreakpointNames?: string[];
 }
 
 interface PendingBreakpointSet {
@@ -49,6 +50,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
   private readonly currentValues = new Map<string, RuntimeValueChange>();
   private readonly debuggerVariableNames = new Set<string>();
   private readonly breakpointSets = new Map<string, PendingBreakpointSet>();
+  private globalConditionBreakpoints: string[] = [];
 
   public readonly onDidSendMessage = this.emitter.event;
 
@@ -69,6 +71,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
       case 'initialize':
         this.respond(request, {
           supportsConfigurationDoneRequest: true,
+          supportsFunctionBreakpoints: true,
           supportsConditionalBreakpoints: true,
           supportsHitConditionalBreakpoints: true,
           supportsLogPoints: true,
@@ -126,6 +129,25 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
               line,
               source: sourceInfo,
               message: line !== item.line ? `Moved to executable XPscript line ${line}.` : undefined
+            };
+          })
+        });
+        return;
+      }
+
+      case 'setFunctionBreakpoints': {
+        const requested = (request.arguments?.breakpoints ?? []) as Array<{ name?: string }>;
+        const conditions = requested
+          .map(item => String(item.name ?? '').trim())
+          .filter(Boolean);
+        this.globalConditionBreakpoints = conditions;
+        this.client?.setGlobalConditionBreakpoints(conditions);
+        this.respond(request, {
+          breakpoints: requested.map(item => {
+            const condition = String(item.name ?? '').trim();
+            return {
+              verified: Boolean(condition),
+              message: condition ? undefined : 'Enter an XPscript condition such as Counter = 10.'
             };
           })
         });
@@ -379,6 +401,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
 
   private async launch(config: XPScriptDebugConfig): Promise<void> {
     this.config = config;
+    this.mergeStartupGlobalConditions(config.startupNonSourceBreakpointNames);
     this.processExited = false;
     this.socketDisconnected = false;
     if (!config.program) throw new Error('XPscript launch requires a program.');
@@ -429,8 +452,16 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         stdio: ['ignore', 'pipe', 'pipe']
       });
       this.process = child;
-      child.stdout?.on('data', data => this.event('output', { category: 'stdout', output: data.toString() }));
-      child.stderr?.on('data', data => this.event('output', { category: 'stderr', output: data.toString() }));
+      child.stdout?.on('data', data => {
+        const output = data.toString();
+        this.event('output', { category: 'stdout', output });
+        this.event('xpscriptProgramOutput', { category: 'stdout', output });
+      });
+      child.stderr?.on('data', data => {
+        const output = data.toString();
+        this.event('output', { category: 'stderr', output });
+        this.event('xpscriptProgramOutput', { category: 'stderr', output });
+      });
       child.once('spawn', () => { settled = true; resolve(); });
       child.once('error', error => {
         this.event('output', { category: 'stderr', output: `Unable to start XPscript executable: ${error.message}\n` });
@@ -446,6 +477,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
 
   private async attach(config: XPScriptDebugConfig): Promise<void> {
     this.config = config;
+    this.mergeStartupGlobalConditions(config.startupNonSourceBreakpointNames);
     this.processExited = false;
     this.socketDisconnected = false;
     if (!config.port) throw new Error('XPscript attach requires a port.');
@@ -474,6 +506,14 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         void vscode.commands.executeCommand('workbench.debug.action.focusRepl');
         return;
       }
+      if (event.type === 'programOutput') {
+        const output = event as RuntimeMessage;
+        const category = String(output.category ?? 'stdout') === 'stderr' ? 'stderr' : 'stdout';
+        const text = String(output.output ?? '') + (output.newLine ? '\n' : '');
+        this.event('output', { category, output: text });
+        this.event('xpscriptProgramOutput', { category, output: text });
+        return;
+      }
       if (event.type === 'breakpointDiagnostic') {
         const info = event as RuntimeMessage;
         this.event('output', { category: 'console', output: String(info.message ?? '') + '\n' });
@@ -497,6 +537,22 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
     await client.connect(host, port, timeoutMs);
     this.client = client;
     for (const item of this.breakpointSets.values()) client.setBreakpoints(item.source, item.breakpoints);
+    client.setGlobalConditionBreakpoints(this.globalConditionBreakpoints);
+  }
+
+  private mergeStartupGlobalConditions(value: unknown): void {
+    const startup = Array.isArray(value)
+      ? value.map(item => String(item ?? '').trim()).filter(Boolean)
+      : [];
+    if (startup.length === 0) return;
+
+    const seen = new Set(this.globalConditionBreakpoints.map(item => item.toLowerCase()));
+    for (const condition of startup) {
+      const key = condition.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      this.globalConditionBreakpoints.push(condition);
+    }
   }
 
   private handleStopped(event: RuntimeStoppedEvent): void {
