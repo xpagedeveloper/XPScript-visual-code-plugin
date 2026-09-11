@@ -2,7 +2,7 @@
   "name": "xpscript",
   "displayName": "XPscript",
   "description": "XPscript language support with repository-driven IntelliSense.",
-  "version": "0.2.40",
+  "version": "0.2.41",
   "publisher": "xpagedeveloper",
   "repository": {
     "type": "git",
