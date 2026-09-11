@@ -121,11 +121,6 @@ async function syncGlobalConditionBreakpoints(session: vscode.DebugSession): Pro
     await session.customRequest('setFunctionBreakpoints', {
       breakpoints: conditions.map(name => ({ name }))
     });
-    if (conditions.length > 0) {
-      vscode.debug.activeDebugConsole.appendLine(
-        `XPscript synced ${conditions.length} global condition breakpoint(s): ${conditions.join(', ')}`
-      );
-    }
   } catch (error) {
     vscode.debug.activeDebugConsole.appendLine(
       `XPscript global condition breakpoint sync failed: ${error instanceof Error ? error.message : String(error)}`
