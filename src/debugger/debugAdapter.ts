@@ -456,8 +456,16 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
         stdio: ['ignore', 'pipe', 'pipe']
       });
       this.process = child;
-      child.stdout?.on('data', data => this.event('output', { category: 'stdout', output: data.toString() }));
-      child.stderr?.on('data', data => this.event('output', { category: 'stderr', output: data.toString() }));
+      child.stdout?.on('data', data => {
+        const output = data.toString();
+        this.event('output', { category: 'stdout', output });
+        this.event('xpscriptProgramOutput', { category: 'stdout', output });
+      });
+      child.stderr?.on('data', data => {
+        const output = data.toString();
+        this.event('output', { category: 'stderr', output });
+        this.event('xpscriptProgramOutput', { category: 'stderr', output });
+      });
       child.once('spawn', () => { settled = true; resolve(); });
       child.once('error', error => {
         this.event('output', { category: 'stderr', output: `Unable to start XPscript executable: ${error.message}\n` });
@@ -500,6 +508,14 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
           line: line > 0 ? line : undefined
         });
         void vscode.commands.executeCommand('workbench.debug.action.focusRepl');
+        return;
+      }
+      if (event.type === 'programOutput') {
+        const output = event as RuntimeMessage;
+        const category = String(output.category ?? 'stdout') === 'stderr' ? 'stderr' : 'stdout';
+        const text = String(output.output ?? '') + (output.newLine ? '\n' : '');
+        this.event('output', { category, output: text });
+        this.event('xpscriptProgramOutput', { category, output: text });
         return;
       }
       if (event.type === 'breakpointDiagnostic') {
