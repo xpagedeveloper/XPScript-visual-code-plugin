@@ -80,6 +80,7 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
       const program = String(message.arguments?.program ?? '').trim();
       if (program) this.programPath = path.normalize(program);
       this.installStartupBreakpoints(message.arguments?.startupBreakpoints);
+      this.installStartupGlobalConditions(message.arguments?.startupNonSourceBreakpointNames);
     }
     this.inner.handleMessage(message);
   }
@@ -140,6 +141,22 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
         }
       });
     }
+  }
+
+  private installStartupGlobalConditions(value: unknown): void {
+    const conditions = Array.isArray(value)
+      ? value.map(item => String(item ?? '').trim()).filter(Boolean)
+      : [];
+    if (conditions.length === 0) return;
+
+    this.inner.handleMessage({
+      seq: this.syntheticSequence--,
+      type: 'request',
+      command: 'setFunctionBreakpoints',
+      arguments: {
+        breakpoints: conditions.map(name => ({ name }))
+      }
+    });
   }
 
   public dispose(): void {
