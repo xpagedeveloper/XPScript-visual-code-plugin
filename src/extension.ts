@@ -338,11 +338,6 @@ export function activate(context: vscode.ExtensionContext): void {
         onDidSendMessage(message: any) {
           if (message?.type === 'event' && message?.event === 'output') {
             parseDiagnosticOutput(diagnostics, session, message.body);
-            const category = String(message?.body?.category ?? '');
-            if (category === 'stdout' || category === 'stderr') {
-              const output = String(message?.body?.output ?? '');
-              if (output) programOutput.append(output);
-            }
           }
         }
       };
@@ -384,9 +379,15 @@ export function activate(context: vscode.ExtensionContext): void {
     if (globalConditionsChanged) void syncGlobalConditionBreakpoints(session);
   });
   const customEvent = vscode.debug.onDidReceiveDebugSessionCustomEvent(event => {
-    if (event.session.type === 'xpscript' && event.event === 'stopped') {
+    if (event.session.type !== 'xpscript') return;
+    if (event.event === 'stopped') {
       status.text = '$(debug-pause) XPscript: Paused';
       status.show();
+      return;
+    }
+    if (event.event === 'xpscriptProgramOutput') {
+      const output = String(event.body?.output ?? '');
+      if (output) programOutput.append(output);
     }
   });
 
