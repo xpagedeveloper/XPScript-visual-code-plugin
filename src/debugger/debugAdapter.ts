@@ -141,10 +141,6 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
           .map(item => String(item.name ?? '').trim())
           .filter(Boolean);
         this.globalConditionBreakpoints = conditions;
-        this.event('output', {
-          category: 'console',
-          output: `XPscript received ${conditions.length} global condition breakpoint(s)${conditions.length ? ': ' + conditions.join(', ') : ''}.\n`
-        });
         this.client?.setGlobalConditionBreakpoints(conditions);
         this.respond(request, {
           breakpoints: requested.map(item => {
@@ -541,10 +537,6 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
     await client.connect(host, port, timeoutMs);
     this.client = client;
     for (const item of this.breakpointSets.values()) client.setBreakpoints(item.source, item.breakpoints);
-    this.event('output', {
-      category: 'console',
-      output: `XPscript sending ${this.globalConditionBreakpoints.length} global condition breakpoint(s) to runtime${this.globalConditionBreakpoints.length ? ': ' + this.globalConditionBreakpoints.join(', ') : ''}.\n`
-    });
     client.setGlobalConditionBreakpoints(this.globalConditionBreakpoints);
   }
 
