@@ -1,6 +1,6 @@
 import * as net from 'net';
 
-const SUPPORTED_PROTOCOL = 7;
+const SUPPORTED_PROTOCOL = 6;
 
 export interface RuntimeStackFrame {
   id: number;
