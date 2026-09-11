@@ -112,18 +112,6 @@ class XPScriptBootstrapDebugAdapter implements vscode.DebugAdapter {
       grouped.set(key, list);
     }
 
-    if (startup.length > 0) {
-      this.emitter.fire({
-        seq: 0,
-        type: 'event',
-        event: 'output',
-        body: {
-          category: 'console',
-          output: `XPscript found ${startup.length} line breakpoint(s).\n`
-        }
-      });
-    }
-
     for (const breakpoints of grouped.values()) {
       const source = breakpoints[0].source;
       this.inner.handleMessage({
