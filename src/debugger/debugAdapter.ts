@@ -434,7 +434,7 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
 
     this.event('output', {
       category: 'console',
-      output: `Starting XPscript debugger protocol v7 on 127.0.0.1:${port}.\n`
+      output: `Starting XPscript debugger protocol v6 on 127.0.0.1:${port}.\n`
     });
 
     const started = this.spawnProcess(executable, args, env);
