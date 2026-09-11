@@ -279,6 +279,7 @@ function parseDiagnosticOutput(
 export function activate(context: vscode.ExtensionContext): void {
   const selector: vscode.DocumentSelector = { language: 'xpscript' };
   const diagnostics = vscode.languages.createDiagnosticCollection('xpscript');
+  const programOutput = vscode.window.createOutputChannel('XPscript');
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 90);
   status.command = 'xpscript.quickActions';
   status.tooltip = 'XPscript run, debug and settings';
@@ -337,6 +338,11 @@ export function activate(context: vscode.ExtensionContext): void {
         onDidSendMessage(message: any) {
           if (message?.type === 'event' && message?.event === 'output') {
             parseDiagnosticOutput(diagnostics, session, message.body);
+            const category = String(message?.body?.category ?? '');
+            if (category === 'stdout' || category === 'stderr') {
+              const output = String(message?.body?.output ?? '');
+              if (output) programOutput.append(output);
+            }
           }
         }
       };
@@ -355,6 +361,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const startSession = vscode.debug.onDidStartDebugSession(session => {
     if (session.type !== 'xpscript') return;
     diagnostics.clear();
+    programOutput.clear();
     updateStatus();
     void syncBreakpointsFromRegistry(session);
     void syncGlobalConditionBreakpoints(session);
@@ -385,6 +392,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     diagnostics,
+    programOutput,
     status,
     refresh,
     checkUpdates,
