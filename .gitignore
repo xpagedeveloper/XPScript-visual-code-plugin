@@ -141,8 +141,3 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
-/publish
-/src/generated
-/src/generated
-src/generated/snippetCatalog.ts
-src/generated/apiCatalog.ts
