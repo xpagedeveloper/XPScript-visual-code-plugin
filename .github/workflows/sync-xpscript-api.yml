@@ -1,12 +1,15 @@
 name: Sync XPscript API catalog
 
 on:
+  repository_dispatch:
+    types: [xpscript-api-updated]
   schedule:
     - cron: '17 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: sync-xpscript-api
@@ -74,14 +77,53 @@ jobs:
           console.log('Bumped extension version to', pkg.version);
           NODE
 
-      - name: Commit synchronized catalog
+      - name: Commit synchronized catalog to sync branch
         if: steps.diff.outputs.changed == 'true'
+        id: commit
         shell: bash
         run: |
           set -euo pipefail
           upstream_sha=$(git -C xpscript-source rev-parse HEAD)
+          branch="automation/sync-xpscript-api"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch" origin/main
+          npm run generate:catalog
+          node - <<'NODE'
+          const fs = require('fs');
+          const file = 'package.json';
+          const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const parts = String(pkg.version).split('.').map(Number);
+          if (parts.length !== 3 || parts.some(Number.isNaN)) throw new Error('Expected semantic x.y.z package version');
+          parts[2] += 1;
+          pkg.version = parts.join('.');
+          fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + '\n');
+          NODE
           git add package.json src/generated/apiCatalog.ts src/generated/parameterHelp.ts
           git commit -m "Sync IntelliSense with XPscript ${upstream_sha:0:8}"
-          git push origin HEAD:main
+          git push --force-with-lease origin "$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
+        env:
+          XPSCRIPT_REPO_PATH: ${{ github.workspace }}/xpscript-source
+          XPSCRIPT_ASTRO_DOCS_PATH: ${{ github.workspace }}/xpscript-source
+
+      - name: Open synchronization pull request
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SYNC_BRANCH: ${{ steps.commit.outputs.branch }}
+          UPSTREAM_SHA: ${{ steps.commit.outputs.upstream_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing=$(gh pr list --head "$SYNC_BRANCH" --base main --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            echo "Sync PR #$existing already open."
+          else
+            gh pr create \
+              --base main \
+              --head "$SYNC_BRANCH" \
+              --title "Sync IntelliSense with XPscript ${UPSTREAM_SHA:0:8}" \
+              --body "Automated IntelliSense catalog synchronization from XPscript main at ${UPSTREAM_SHA}."
+          fi
