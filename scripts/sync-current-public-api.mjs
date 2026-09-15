@@ -194,6 +194,33 @@ const notesReference = syncNotesReference();
 const notesSamples = syncNotesSamples();
 const notesConstants = syncNotesConst();
 
+// A native Notes type can be introduced by a return-type row before its own
+// reference heading is available in the checked-out documentation. Keep such
+// types discoverable in global completion instead of exposing them only as
+// metadata on another member (for example NotesDBDirectory.OpenDatabase ->
+// NotesDatabase).
+const requiredNotesTypes = ['NotesSession', 'NotesDBDirectory', 'NotesDatabase', 'NotesView', 'NotesViewColumn', 'NotesViewEntry', 'NotesViewEntryCollection', 'NotesViewNavigator', 'NotesDocumentCollection', 'NotesDocument', 'NotesItem', 'NotesRichTextItem', 'NotesRichTextNavigator', 'NotesRichTextRange', 'NotesRichTextStyle', 'NotesRichTextParagraphStyle', 'NotesRichTextTab', 'NotesRichTextSection', 'NotesRichTextTable', 'NotesRichTextDocLink', 'NotesEmbeddedObject', 'NotesName', 'NotesDateTime', 'NotesStream', 'NotesMIMEEntity', 'NotesMIMEHeader', 'NotesAgent', 'NotesAgentResult', 'NotesNoteCollection', 'NotesRichtext'];
+const referencedNotesTypes = new Set(requiredNotesTypes);
+for (const item of byKey.values()) {
+  if (item.owner) referencedNotesTypes.add(item.owner.trim());
+  if (item.returnType) referencedNotesTypes.add(item.returnType.trim());
+}
+for (const typeName of referencedNotesTypes) {
+  if (!/^Notes[A-Za-z0-9_]+$/.test(typeName) || byKey.has(typeName.toLowerCase())) continue;
+  addIfMissing({
+    name: typeName,
+    qualifiedName: typeName,
+    kind: 'class',
+    syntax: `Dim value As ${typeName}`,
+    parameters: '',
+    description: `Public XPscript ${typeName} object referenced by the documented Notes API.`,
+    source: 'docs/notes-c-api.md',
+    section: 'Native Notes/Domino'
+  });
+}
+const missingNotesTypes = requiredNotesTypes.filter(typeName => !byKey.has(typeName.toLowerCase()));
+if (missingNotesTypes.length > 0) throw new Error(`Notes type catalog is incomplete: ${missingNotesTypes.join(', ')}`);
+
 const catalog = [...byKey.values()].sort((a, b) => a.qualifiedName.localeCompare(b.qualifiedName));
 const header = source.slice(0, jsonStart);
 fs.writeFileSync(outFile, `${header}${JSON.stringify(catalog, null, 2)};\n`);

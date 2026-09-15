@@ -6,14 +6,45 @@ const XPSCRIPT_REPO_BLOB_BASE = 'https://github.com/xpagedeveloper/XPscript/blob
 
 const byOwner = new Map<string, ApiItem[]>();
 const byName = new Map<string, ApiItem[]>();
+const globalItems: ApiItem[] = [];
+const topLevelNotesClasses = [
+  'NotesSession', 'NotesDBDirectory', 'NotesDatabase', 'NotesView', 'NotesViewColumn',
+  'NotesViewEntry', 'NotesViewEntryCollection', 'NotesViewNavigator', 'NotesDocumentCollection',
+  'NotesDocument', 'NotesItem', 'NotesRichTextItem', 'NotesRichTextNavigator', 'NotesRichTextRange',
+  'NotesRichTextStyle', 'NotesRichTextParagraphStyle', 'NotesRichTextTab', 'NotesRichTextSection',
+  'NotesRichTextTable', 'NotesRichTextDocLink', 'NotesEmbeddedObject', 'NotesName', 'NotesDateTime',
+  'NotesStream', 'NotesMIMEEntity', 'NotesMIMEHeader', 'NotesAgent', 'NotesAgentResult',
+  'NotesNoteCollection', 'NotesRichtext'
+];
 for (const item of apiCatalog) {
   if (item.owner) {
     const key = item.owner.toLowerCase();
-    byOwner.set(key, [...(byOwner.get(key) ?? []), item]);
+    const values = byOwner.get(key);
+    if (values) values.push(item); else byOwner.set(key, [item]);
+  } else {
+    globalItems.push(item);
   }
   const nameKey = item.name.toLowerCase();
-  byName.set(nameKey, [...(byName.get(nameKey) ?? []), item]);
+  const named = byName.get(nameKey);
+  if (named) named.push(item); else byName.set(nameKey, [item]);
 }
+for (const name of topLevelNotesClasses) {
+  if (byName.has(name.toLowerCase())) continue;
+  const item: ApiItem = {
+    name, qualifiedName: name, kind: 'class', syntax: `Dim value As ${name}`, parameters: '',
+    description: `Public XPscript ${name} object.`, source: 'docs/notes-c-api.md', section: 'Native Notes/Domino'
+  };
+  globalItems.push(item);
+  byName.set(name.toLowerCase(), [item]);
+}
+
+interface DocumentAnalysis {
+  version: number;
+  types: Map<string, string>;
+}
+
+const documentAnalysisCache = new Map<string, DocumentAnalysis>();
+const completionCache = new Map<string, vscode.CompletionItem[]>();
 
 function parameterDetailsFor(item: ApiItem): ApiParameterHelp[] {
   return parameterHelp[item.qualifiedName.toLowerCase()] ?? [];
@@ -28,11 +59,7 @@ function sourceUrl(source: string): string | undefined {
 
 function rawParameterNames(item: ApiItem): string[] {
   if (!item.parameters || item.parameters.trim().toLowerCase() === 'none') return [];
-  return item.parameters
-    .split(';')
-    .flatMap(value => value.split(','))
-    .map(value => value.trim())
-    .filter(Boolean);
+  return item.parameters.split(';').flatMap(value => value.split(',')).map(value => value.trim()).filter(Boolean);
 }
 
 function memberFor(owner: string, name: string): ApiItem | undefined {
@@ -42,16 +69,11 @@ function memberFor(owner: string, name: string): ApiItem | undefined {
 function resolveExpressionType(expression: string, types: Map<string, string>): string | undefined {
   const parts = expression.trim().split('.').map(x => x.trim()).filter(Boolean);
   if (parts.length === 0) return undefined;
-
   const firstName = parts[0].replace(/\(.*$/, '');
   let currentType = types.get(firstName.toLowerCase());
   if (!currentType && byOwner.has(firstName.toLowerCase())) currentType = firstName;
-  if (!currentType) {
-    const global = (byName.get(firstName.toLowerCase()) ?? []).find(x => !x.owner && x.returnType);
-    currentType = global?.returnType;
-  }
+  if (!currentType) currentType = (byName.get(firstName.toLowerCase()) ?? []).find(x => !x.owner && x.returnType)?.returnType;
   if (!currentType) return undefined;
-
   for (const rawPart of parts.slice(1)) {
     const memberName = rawPart.replace(/\(.*$/, '');
     const member = memberFor(currentType, memberName);
@@ -72,11 +94,11 @@ export function resolveVariableTypes(text: string): Map<string, string> {
     if (fn?.returnType) types.set(match[1].toLowerCase(), fn.returnType);
   }
 
-  const memberAssignments = /^\s*(?:Set\s+)?(\w+)\s*=\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*(?:\([^\r\n]*?\))?)*)\s*$/gim;
+  const memberAssignments = [...text.matchAll(/^\s*(?:Set\s+)?(\w+)\s*=\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*(?:\([^\r\n]*?\))?)*)\s*$/gim)];
   let changed = true;
   while (changed) {
     changed = false;
-    for (const match of text.matchAll(memberAssignments)) {
+    for (const match of memberAssignments) {
       const variable = match[1].toLowerCase();
       if (types.has(variable)) continue;
       const resolved = resolveExpressionType(match[2], types);
@@ -86,6 +108,15 @@ export function resolveVariableTypes(text: string): Map<string, string> {
       }
     }
   }
+  return types;
+}
+
+function typesFor(document: vscode.TextDocument): Map<string, string> {
+  const key = document.uri.toString();
+  const cached = documentAnalysisCache.get(key);
+  if (cached?.version === document.version) return cached.types;
+  const types = resolveVariableTypes(document.getText());
+  documentAnalysisCache.set(key, { version: document.version, types });
   return types;
 }
 
@@ -111,28 +142,22 @@ function markdown(item: ApiItem): vscode.MarkdownString {
   const rawParameters = rawParameterNames(item);
   md.appendCodeblock(item.syntax, 'xpscript');
   if (item.description) md.appendMarkdown(`\n${item.description}`);
-
   if (details.length > 0) {
     md.appendMarkdown('\n\n### Parameters');
     for (const parameter of details) {
       const defaultText = parameter.default !== undefined ? ` Default: \`${String(parameter.default)}\`.` : '';
-      const description = parameter.description || 'No separate parameter description is documented.';
-      md.appendMarkdown(`\n\n- ${parameterLabel(parameter)}: ${description}${defaultText}`);
+      md.appendMarkdown(`\n\n- ${parameterLabel(parameter)}: ${parameter.description || 'No separate parameter description is documented.'}${defaultText}`);
     }
   } else if (rawParameters.length > 0) {
     md.appendMarkdown('\n\n### Parameters');
-    for (const parameter of rawParameters) {
-      md.appendMarkdown(`\n\n- \`${parameter}\`: Parameter documented by the XPscript API source. See the source link below for usage details.`);
-    }
+    for (const parameter of rawParameters) md.appendMarkdown(`\n\n- \`${parameter}\`: Parameter documented by the XPscript API source. See the source link below for usage details.`);
   } else if (item.kind === 'function') {
     md.appendMarkdown('\n\n### Parameters\n\nThis function has no documented parameters.');
   } else if (item.kind === 'class') {
     md.appendMarkdown('\n\n### Parameters\n\nNo constructor parameters are documented for this object.');
   }
-
   if (item.returnType) md.appendMarkdown(`\n\nReturns: \`${item.returnType}\``);
   if (item.writable) md.appendMarkdown('\n\nRead/Write');
-
   const url = sourceUrl(item.source);
   if (url) md.appendMarkdown(`\n\nSource: [\`${item.source}\`](${url} "Open XPscript source documentation")`);
   else md.appendMarkdown(`\n\nSource: \`${item.source}\``);
@@ -156,15 +181,23 @@ export function completionFor(item: ApiItem): vscode.CompletionItem {
   return result;
 }
 
+function completionsFor(owner?: string): vscode.CompletionItem[] {
+  const key = owner?.toLowerCase() ?? '';
+  const cached = completionCache.get(key);
+  if (cached) return cached;
+  const items = (owner ? byOwner.get(key) ?? [] : globalItems).map(completionFor);
+  completionCache.set(key, items);
+  return items;
+}
+
 export function getCompletions(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
   const prefix = document.lineAt(position.line).text.slice(0, position.character);
   const member = prefix.match(/([A-Za-z_]\w*(?:\([^()]*\))?(?:\.[A-Za-z_]\w*(?:\([^()]*\))?)*)\.([A-Za-z_]\w*)?$/);
   if (member) {
-    const types = resolveVariableTypes(document.getText());
-    const owner = resolveExpressionType(member[1], types) ?? member[1];
-    return (byOwner.get(owner.toLowerCase()) ?? []).map(completionFor);
+    const owner = resolveExpressionType(member[1], typesFor(document)) ?? member[1];
+    return completionsFor(owner);
   }
-  return apiCatalog.filter(x => !x.owner).map(completionFor);
+  return completionsFor();
 }
 
 export function findItemAt(document: vscode.TextDocument, position: vscode.Position): ApiItem | undefined {
@@ -174,8 +207,7 @@ export function findItemAt(document: vscode.TextDocument, position: vscode.Posit
   const linePrefix = document.lineAt(position.line).text.slice(0, range.start.character);
   const receiverMatch = linePrefix.match(/([A-Za-z_]\w*(?:\([^()]*\))?(?:\.[A-Za-z_]\w*(?:\([^()]*\))?)*)\.\s*$/);
   if (receiverMatch) {
-    const types = resolveVariableTypes(document.getText());
-    const owner = resolveExpressionType(receiverMatch[1], types) ?? receiverMatch[1];
+    const owner = resolveExpressionType(receiverMatch[1], typesFor(document)) ?? receiverMatch[1];
     return memberFor(owner, word);
   }
   return (byName.get(word.toLowerCase()) ?? []).find(x => !x.owner) ?? byName.get(word.toLowerCase())?.[0];
@@ -194,8 +226,7 @@ export function getSignatureHelp(document: vscode.TextDocument, position: vscode
   const name = match[2];
   let item: ApiItem | undefined;
   if (receiver) {
-    const types = resolveVariableTypes(document.getText());
-    const owner = resolveExpressionType(receiver, types) ?? receiver;
+    const owner = resolveExpressionType(receiver, typesFor(document)) ?? receiver;
     item = memberFor(owner, name);
   } else {
     item = (byName.get(name.toLowerCase()) ?? []).find(x => !x.owner);
@@ -207,16 +238,15 @@ export function getSignatureHelp(document: vscode.TextDocument, position: vscode
   if (details.length > 0) {
     sig.parameters = details.map(parameter => {
       const label = parameter.type ? `${parameter.name} As ${parameter.type}` : parameter.name;
-      const parameterDocs = new vscode.MarkdownString();
-      parameterDocs.appendMarkdown(parameter.description || 'No separate parameter description is documented.');
-      if (!parameter.required) parameterDocs.appendMarkdown('\n\nOptional.');
-      if (parameter.default !== undefined) parameterDocs.appendMarkdown(`\n\nDefault: \`${String(parameter.default)}\`.`);
-      return new vscode.ParameterInformation(label, parameterDocs);
+      const docs = new vscode.MarkdownString();
+      docs.appendMarkdown(parameter.description || 'No separate parameter description is documented.');
+      if (!parameter.required) docs.appendMarkdown('\n\nOptional.');
+      if (parameter.default !== undefined) docs.appendMarkdown(`\n\nDefault: \`${String(parameter.default)}\`.`);
+      return new vscode.ParameterInformation(label, docs);
     });
   } else {
     sig.parameters = rawParameterNames(item).map(p => new vscode.ParameterInformation(p, 'Parameter documented by the XPscript API source.'));
   }
-
   const help = new vscode.SignatureHelp();
   help.signatures = [sig];
   help.activeSignature = 0;
