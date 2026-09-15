@@ -213,23 +213,25 @@ export class XPScriptDebugAdapter implements vscode.DebugAdapter {
 
       case 'configurationDone': {
         this.respond(request);
-        const configured = [...this.breakpointSets.values()];
-        if (configured.length === 0) {
-          this.event('output', { category: 'console', output: 'XPscript debugger: no source breakpoints were received from VS Code.\n' });
-        } else {
-          for (const set of configured) {
-            for (const breakpoint of set.breakpoints) {
-              const suffix = breakpoint.condition
-                ? ` condition=${breakpoint.condition}`
-                : breakpoint.hitCondition
-                  ? ` hitCount=${breakpoint.hitCondition}`
-                  : breakpoint.logMessage
-                    ? ` logMessage=${breakpoint.logMessage}`
-                    : '';
-              this.event('output', {
-                category: 'console',
-                output: `XPscript configured breakpoint ${this.fileName(set.source)}:${breakpoint.line}${suffix}\n`
-              });
+        if (!this.config?.noDebug) {
+          const configured = [...this.breakpointSets.values()];
+          if (configured.length === 0) {
+            this.event('output', { category: 'console', output: 'XPscript debugger: no source breakpoints were received from VS Code.\n' });
+          } else {
+            for (const set of configured) {
+              for (const breakpoint of set.breakpoints) {
+                const suffix = breakpoint.condition
+                  ? ` condition=${breakpoint.condition}`
+                  : breakpoint.hitCondition
+                    ? ` hitCount=${breakpoint.hitCondition}`
+                    : breakpoint.logMessage
+                      ? ` logMessage=${breakpoint.logMessage}`
+                      : '';
+                this.event('output', {
+                  category: 'console',
+                  output: `XPscript configured breakpoint ${this.fileName(set.source)}:${breakpoint.line}${suffix}\n`
+                });
+              }
             }
           }
         }
