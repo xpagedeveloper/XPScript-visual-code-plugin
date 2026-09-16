@@ -2988,6 +2988,364 @@ export const apiCatalog: ApiItem[] = [
     "section": "Native JSON"
   },
   {
+    "name": "JsonSchema",
+    "qualifiedName": "JsonSchema",
+    "kind": "class",
+    "syntax": "Dim schema As New XPJsonSchema",
+    "parameters": "none",
+    "description": "Creates a mutable JSON Schema object.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "AddArray",
+    "qualifiedName": "JsonSchema.AddArray",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.AddArray(name, itemSchema [, required])",
+    "parameters": "property name, item schema, optional required flag.",
+    "description": "Adds an array property.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "AddBoolean",
+    "qualifiedName": "JsonSchema.AddBoolean",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.AddBoolean(name [, required])",
+    "parameters": "property name, optional required flag.",
+    "description": "Adds a boolean property.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "AddInteger",
+    "qualifiedName": "JsonSchema.AddInteger",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.AddInteger(name [, required])",
+    "parameters": "property name, optional required flag.",
+    "description": "Adds an integer property.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "AdditionalProperties",
+    "qualifiedName": "JsonSchema.AdditionalProperties",
+    "owner": "JsonSchema",
+    "kind": "property",
+    "syntax": "schema.AdditionalProperties",
+    "parameters": "none",
+    "description": "Gets or sets whether undeclared object properties are allowed.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "AddJson",
+    "qualifiedName": "JsonSchema.AddJson",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.AddJson(name, json [, required])",
+    "parameters": "property name, example JSON, optional required flag.",
+    "description": "Adds a property using an inferred schema.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "AddNumber",
+    "qualifiedName": "JsonSchema.AddNumber",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.AddNumber(name [, required])",
+    "parameters": "property name, optional required flag.",
+    "description": "Adds a numeric property.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "AddObject",
+    "qualifiedName": "JsonSchema.AddObject",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.AddObject(name [, required])",
+    "parameters": "property name, optional required flag.",
+    "description": "Adds an object property.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "AddProperty",
+    "qualifiedName": "JsonSchema.AddProperty",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.AddProperty(name, childSchema [, required])",
+    "parameters": "property name, child schema, optional required flag.",
+    "description": "Adds an object property schema.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "AddString",
+    "qualifiedName": "JsonSchema.AddString",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.AddString(name [, required])",
+    "parameters": "property name, optional required flag.",
+    "description": "Adds a string property.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Clone",
+    "qualifiedName": "JsonSchema.Clone",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.Clone()",
+    "parameters": "none",
+    "description": "Returns an independent copy of the schema.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Description",
+    "qualifiedName": "JsonSchema.Description",
+    "owner": "JsonSchema",
+    "kind": "property",
+    "syntax": "schema.Description",
+    "parameters": "none",
+    "description": "Gets or sets the schema description.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Enum",
+    "qualifiedName": "JsonSchema.Enum",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.Enum(values)",
+    "parameters": "JSON array of allowed values.",
+    "description": "Sets the enum keyword.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "FromJson",
+    "qualifiedName": "JsonSchema.FromJson",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "XPJsonSchema.FromJson(json)",
+    "parameters": "JSON object/document containing a schema.",
+    "description": "Creates a schema from an existing JSON Schema object.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "FromValue",
+    "qualifiedName": "JsonSchema.FromValue",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "XPJsonSchema.FromValue(json [, required])",
+    "parameters": "JSON value; optional required-property flag.",
+    "description": "Alias for schema inference from an example value.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Infer",
+    "qualifiedName": "JsonSchema.Infer",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "XPJsonSchema.Infer(json [, required])",
+    "parameters": "JSON value; optional required-property flag.",
+    "description": "Infers a JSON Schema from an example JSON value.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "IsValid",
+    "qualifiedName": "JsonSchema.IsValid",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.IsValid(json)",
+    "parameters": "JSON value to validate.",
+    "description": "Returns True when JSON satisfies the schema.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Items",
+    "qualifiedName": "JsonSchema.Items",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.Items(itemSchema)",
+    "parameters": "item schema.",
+    "description": "Sets the array items schema.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Json",
+    "qualifiedName": "JsonSchema.Json",
+    "owner": "JsonSchema",
+    "kind": "property",
+    "syntax": "schema.Json",
+    "parameters": "none",
+    "description": "Returns the schema as an XPJsonDocument.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Parse",
+    "qualifiedName": "JsonSchema.Parse",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "XPJsonSchema.Parse(text)",
+    "parameters": "JSON Schema `text`.",
+    "description": "Parses a JSON Schema object from JSON text.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Remove",
+    "qualifiedName": "JsonSchema.Remove",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.Remove(keyword)",
+    "parameters": "schema keyword.",
+    "description": "Removes a schema keyword.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Require",
+    "qualifiedName": "JsonSchema.Require",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.Require(name)",
+    "parameters": "property name.",
+    "description": "Marks an object property as required.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Set",
+    "qualifiedName": "JsonSchema.Set",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.Set(keyword, value)",
+    "parameters": "schema keyword and value.",
+    "description": "Sets an arbitrary schema keyword.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Text",
+    "qualifiedName": "JsonSchema.Text",
+    "owner": "JsonSchema",
+    "kind": "property",
+    "syntax": "schema.Text",
+    "parameters": "none",
+    "description": "Returns compact JSON Schema text.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Title",
+    "qualifiedName": "JsonSchema.Title",
+    "owner": "JsonSchema",
+    "kind": "property",
+    "syntax": "schema.Title",
+    "parameters": "none",
+    "description": "Gets or sets the schema title.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "ToString",
+    "qualifiedName": "JsonSchema.ToString",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.ToString()",
+    "parameters": "none",
+    "description": "Returns compact JSON Schema text.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Type",
+    "qualifiedName": "JsonSchema.Type",
+    "owner": "JsonSchema",
+    "kind": "property",
+    "syntax": "schema.Type",
+    "parameters": "none",
+    "description": "Gets or sets the JSON Schema type keyword.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Validate",
+    "qualifiedName": "JsonSchema.Validate",
+    "owner": "JsonSchema",
+    "kind": "function",
+    "syntax": "schema.Validate(json)",
+    "parameters": "JSON value to validate.",
+    "description": "Validates JSON and returns XPJsonValidationResult.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "JsonSchemaValidator",
+    "qualifiedName": "JsonSchemaValidator",
+    "kind": "function",
+    "syntax": "XPJsonSchemaValidator",
+    "parameters": "none",
+    "description": "Runtime JSON Schema validator used by XPJsonSchema.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Validate",
+    "qualifiedName": "JsonSchemaValidator.Validate",
+    "owner": "JsonSchemaValidator",
+    "kind": "function",
+    "syntax": "XPJsonSchemaValidator.Validate(schema, json)",
+    "parameters": "schema and JSON value.",
+    "description": "Validates JSON against a schema.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
     "name": "JsonStringify",
     "qualifiedName": "JsonStringify",
     "kind": "function",
@@ -2997,6 +3355,65 @@ export const apiCatalog: ApiItem[] = [
     "writable": false,
     "source": "docs/api-reference.md",
     "section": "Native JSON"
+  },
+  {
+    "name": "JsonValidationResult",
+    "qualifiedName": "JsonValidationResult",
+    "kind": "function",
+    "syntax": "Dim result As XPJsonValidationResult",
+    "parameters": "none",
+    "description": "Represents JSON Schema validation output.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "ErrorCount",
+    "qualifiedName": "JsonValidationResult.ErrorCount",
+    "owner": "JsonValidationResult",
+    "kind": "property",
+    "syntax": "result.ErrorCount",
+    "parameters": "none",
+    "description": "Number of validation errors.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Errors",
+    "qualifiedName": "JsonValidationResult.Errors",
+    "owner": "JsonValidationResult",
+    "kind": "property",
+    "syntax": "result.Errors",
+    "parameters": "none",
+    "description": "Returns validation errors as XPJsonArray.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Json",
+    "qualifiedName": "JsonValidationResult.Json",
+    "owner": "JsonValidationResult",
+    "kind": "property",
+    "syntax": "result.Json",
+    "parameters": "none",
+    "description": "Returns the complete validation result as XPJsonDocument.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
+  },
+  {
+    "name": "Valid",
+    "qualifiedName": "JsonValidationResult.Valid",
+    "owner": "JsonValidationResult",
+    "kind": "property",
+    "syntax": "result.Valid",
+    "parameters": "none",
+    "description": "True when validation produced no errors.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "XPJsonSchema"
   },
   {
     "name": "Kill",
@@ -5413,6 +5830,16 @@ export const apiCatalog: ApiItem[] = [
     "section": "Public Notes full-surface sample"
   },
   {
+    "name": "NotesDXLExporter",
+    "qualifiedName": "NotesDXLExporter",
+    "kind": "class",
+    "syntax": "Dim value As NotesDXLExporter",
+    "parameters": "",
+    "description": "Public XPscript NotesDXLExporter object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
+  },
+  {
     "name": "CleanedDXL",
     "qualifiedName": "NotesDXLExporter.CleanedDXL",
     "owner": "NotesDXLExporter",
@@ -5633,6 +6060,16 @@ export const apiCatalog: ApiItem[] = [
     "section": "Public Notes full-surface sample"
   },
   {
+    "name": "NotesDXLImporter",
+    "qualifiedName": "NotesDXLImporter",
+    "kind": "class",
+    "syntax": "Dim value As NotesDXLImporter",
+    "parameters": "",
+    "description": "Public XPscript NotesDXLImporter object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
+  },
+  {
     "name": "ACLImportOption",
     "qualifiedName": "NotesDXLImporter.ACLImportOption",
     "owner": "NotesDXLImporter",
@@ -5776,6 +6213,16 @@ export const apiCatalog: ApiItem[] = [
     "section": "Public Notes full-surface sample"
   },
   {
+    "name": "NotesEmbeddedObject",
+    "qualifiedName": "NotesEmbeddedObject",
+    "kind": "class",
+    "syntax": "Dim value As NotesEmbeddedObject",
+    "parameters": "",
+    "description": "Public XPscript NotesEmbeddedObject object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
+  },
+  {
     "name": "ExtractFile",
     "qualifiedName": "NotesEmbeddedObject.ExtractFile",
     "owner": "NotesEmbeddedObject",
@@ -5906,6 +6353,16 @@ export const apiCatalog: ApiItem[] = [
     "description": "Public NotesEmbeddedObject.Type property verified by notes-database-full-surface-test.xps.",
     "source": "samples/notes-database-full-surface-test.xps",
     "section": "Public Notes full-surface sample"
+  },
+  {
+    "name": "NotesForm",
+    "qualifiedName": "NotesForm",
+    "kind": "class",
+    "syntax": "Dim value As NotesForm",
+    "parameters": "",
+    "description": "Public XPscript NotesForm object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
   },
   {
     "name": "NotesItem",
@@ -7205,6 +7662,16 @@ export const apiCatalog: ApiItem[] = [
     "section": "Properties"
   },
   {
+    "name": "NotesNoteCollection",
+    "qualifiedName": "NotesNoteCollection",
+    "kind": "class",
+    "syntax": "Dim value As NotesNoteCollection",
+    "parameters": "",
+    "description": "Public XPscript NotesNoteCollection object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
+  },
+  {
     "name": "BuildCollection",
     "qualifiedName": "NotesNoteCollection.BuildCollection",
     "owner": "NotesNoteCollection",
@@ -7302,6 +7769,26 @@ export const apiCatalog: ApiItem[] = [
     "description": "Public NotesNoteCollection.SelectionFormula property verified by notes-note-collection-surface.xps.",
     "source": "samples/notes-note-collection-surface.xps",
     "section": "Public Notes full-surface sample"
+  },
+  {
+    "name": "NotesRichtext",
+    "qualifiedName": "NotesRichtext",
+    "kind": "class",
+    "syntax": "Dim value As NotesRichtext",
+    "parameters": "",
+    "description": "Public XPscript NotesRichtext object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
+  },
+  {
+    "name": "NotesRichTextDocLink",
+    "qualifiedName": "NotesRichTextDocLink",
+    "kind": "class",
+    "syntax": "Dim value As NotesRichTextDocLink",
+    "parameters": "",
+    "description": "Public XPscript NotesRichTextDocLink object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
   },
   {
     "name": "DbReplicaID",
@@ -7569,6 +8056,16 @@ export const apiCatalog: ApiItem[] = [
     "section": "Public Notes full-surface sample"
   },
   {
+    "name": "NotesRichTextNavigator",
+    "qualifiedName": "NotesRichTextNavigator",
+    "kind": "class",
+    "syntax": "Dim value As NotesRichTextNavigator",
+    "parameters": "",
+    "description": "Public XPscript NotesRichTextNavigator object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
+  },
+  {
     "name": "Clone",
     "qualifiedName": "NotesRichTextNavigator.Clone",
     "owner": "NotesRichTextNavigator",
@@ -7701,6 +8198,16 @@ export const apiCatalog: ApiItem[] = [
     "section": "Public Notes full-surface sample"
   },
   {
+    "name": "NotesRichTextParagraphStyle",
+    "qualifiedName": "NotesRichTextParagraphStyle",
+    "kind": "class",
+    "syntax": "Dim value As NotesRichTextParagraphStyle",
+    "parameters": "",
+    "description": "Public XPscript NotesRichTextParagraphStyle object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
+  },
+  {
     "name": "Alignment",
     "qualifiedName": "NotesRichTextParagraphStyle.Alignment",
     "owner": "NotesRichTextParagraphStyle",
@@ -7787,6 +8294,16 @@ export const apiCatalog: ApiItem[] = [
     "description": "Public NotesRichTextParagraphStyle.SetTabs member verified by notes-database-full-surface-test.xps.",
     "source": "samples/notes-database-full-surface-test.xps",
     "section": "Public Notes full-surface sample"
+  },
+  {
+    "name": "NotesRichTextRange",
+    "qualifiedName": "NotesRichTextRange",
+    "kind": "class",
+    "syntax": "Dim value As NotesRichTextRange",
+    "parameters": "",
+    "description": "Public XPscript NotesRichTextRange object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
   },
   {
     "name": "Clone",
@@ -7910,6 +8427,16 @@ export const apiCatalog: ApiItem[] = [
     "section": "Public Notes full-surface sample"
   },
   {
+    "name": "NotesRichTextSection",
+    "qualifiedName": "NotesRichTextSection",
+    "kind": "class",
+    "syntax": "Dim value As NotesRichTextSection",
+    "parameters": "",
+    "description": "Public XPscript NotesRichTextSection object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
+  },
+  {
     "name": "BarColor",
     "qualifiedName": "NotesRichTextSection.BarColor",
     "owner": "NotesRichTextSection",
@@ -7996,6 +8523,16 @@ export const apiCatalog: ApiItem[] = [
     "description": "Public NotesRichTextSection.TitleStyle property verified by notes-database-full-surface-test.xps.",
     "source": "samples/notes-database-full-surface-test.xps",
     "section": "Public Notes full-surface sample"
+  },
+  {
+    "name": "NotesRichTextStyle",
+    "qualifiedName": "NotesRichTextStyle",
+    "kind": "class",
+    "syntax": "Dim value As NotesRichTextStyle",
+    "parameters": "",
+    "description": "Public XPscript NotesRichTextStyle object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
   },
   {
     "name": "Bold",
@@ -8086,6 +8623,16 @@ export const apiCatalog: ApiItem[] = [
     "section": "Public Notes full-surface sample"
   },
   {
+    "name": "NotesRichTextTab",
+    "qualifiedName": "NotesRichTextTab",
+    "kind": "class",
+    "syntax": "Dim value As NotesRichTextTab",
+    "parameters": "",
+    "description": "Public XPscript NotesRichTextTab object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
+  },
+  {
     "name": "Position",
     "qualifiedName": "NotesRichTextTab.Position",
     "owner": "NotesRichTextTab",
@@ -8117,6 +8664,16 @@ export const apiCatalog: ApiItem[] = [
     "description": "Public NotesRichTextTab.Type property verified by notes-database-full-surface-test.xps.",
     "source": "samples/notes-database-full-surface-test.xps",
     "section": "Public Notes full-surface sample"
+  },
+  {
+    "name": "NotesRichTextTable",
+    "qualifiedName": "NotesRichTextTable",
+    "kind": "class",
+    "syntax": "Dim value As NotesRichTextTable",
+    "parameters": "",
+    "description": "Public XPscript NotesRichTextTable object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
   },
   {
     "name": "ColumnCount",
@@ -8546,6 +9103,16 @@ export const apiCatalog: ApiItem[] = [
     "section": "NotesSession additions"
   },
   {
+    "name": "NotesStream",
+    "qualifiedName": "NotesStream",
+    "kind": "class",
+    "syntax": "Dim value As NotesStream",
+    "parameters": "",
+    "description": "Public XPscript NotesStream object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
+  },
+  {
     "name": "Charset",
     "qualifiedName": "NotesStream.Charset",
     "owner": "NotesStream",
@@ -8730,6 +9297,46 @@ export const apiCatalog: ApiItem[] = [
     "description": "Calls the native collection update and rebuilds the view navigation snapshot.",
     "source": "docs/notes-c-api.md",
     "section": "Functions and methods"
+  },
+  {
+    "name": "NotesViewColumn",
+    "qualifiedName": "NotesViewColumn",
+    "kind": "class",
+    "syntax": "Dim value As NotesViewColumn",
+    "parameters": "",
+    "description": "Public XPscript NotesViewColumn object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
+  },
+  {
+    "name": "NotesViewEntry",
+    "qualifiedName": "NotesViewEntry",
+    "kind": "class",
+    "syntax": "Dim value As NotesViewEntry",
+    "parameters": "",
+    "description": "Public XPscript NotesViewEntry object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
+  },
+  {
+    "name": "NotesViewEntryCollection",
+    "qualifiedName": "NotesViewEntryCollection",
+    "kind": "class",
+    "syntax": "Dim value As NotesViewEntryCollection",
+    "parameters": "",
+    "description": "Public XPscript NotesViewEntryCollection object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
+  },
+  {
+    "name": "NotesViewNavigator",
+    "qualifiedName": "NotesViewNavigator",
+    "kind": "class",
+    "syntax": "Dim value As NotesViewNavigator",
+    "parameters": "",
+    "description": "Public XPscript NotesViewNavigator object referenced by the documented Notes API.",
+    "source": "docs/notes-c-api.md",
+    "section": "Native Notes/Domino"
   },
   {
     "name": "Nothing",
