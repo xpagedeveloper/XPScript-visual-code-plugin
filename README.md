@@ -46,7 +46,7 @@ Open the repository's **Releases** page on GitHub and download the `.vsix` file 
 The release asset is named similar to:
 
 ```text
-xpscript-0.2.25.vsix
+xpscript-X.Y.ZZ.vsix
 ```
 
 ### 2. Install in Visual Studio Code
@@ -70,13 +70,13 @@ Extensions: Install from VSIX...
 If the `code` command is available in your shell:
 
 ```bash
-code --install-extension xpscript-0.2.25.vsix
+code --install-extension xpscript-X.Y.ZZ.vsix
 ```
 
 To install or replace an existing version without a confirmation prompt:
 
 ```bash
-code --install-extension xpscript-0.2.25.vsix --force
+code --install-extension xpscript-X.Y.ZZ.vsix --force
 ```
 
 ## `.xps` files
