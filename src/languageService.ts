@@ -50,11 +50,24 @@ function parameterDetailsFor(item: ApiItem): ApiParameterHelp[] {
   return parameterHelp[item.qualifiedName.toLowerCase()] ?? [];
 }
 
-function sourceUrl(source: string): string | undefined {
+function markdownAnchor(section: string): string | undefined {
+  const clean = section.trim();
+  if (!clean) return undefined;
+  const anchor = clean
+    .toLowerCase()
+    .replace(/[^a-z0-9_\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
+  return anchor || undefined;
+}
+
+function sourceUrl(source: string, section?: string): string | undefined {
   const clean = source.trim().replace(/^\.\//, '');
   if (!clean) return undefined;
-  if (/^https?:\/\//i.test(clean)) return clean;
-  return encodeURI(`${XPSCRIPT_REPO_BLOB_BASE}${clean}`);
+  const baseUrl = /^https?:\/\//i.test(clean) ? clean : encodeURI(`${XPSCRIPT_REPO_BLOB_BASE}${clean}`);
+  if (!section || !/\.md(?:$|[?#])/i.test(clean)) return baseUrl;
+  const anchor = markdownAnchor(section);
+  return anchor ? `${baseUrl}#${anchor}` : baseUrl;
 }
 
 function rawParameterNames(item: ApiItem): string[] {
@@ -158,7 +171,7 @@ function markdown(item: ApiItem): vscode.MarkdownString {
   }
   if (item.returnType) md.appendMarkdown(`\n\nReturns: \`${item.returnType}\``);
   if (item.writable) md.appendMarkdown('\n\nRead/Write');
-  const url = sourceUrl(item.source);
+  const url = sourceUrl(item.source, item.section);
   if (url) md.appendMarkdown(`\n\nSource: [\`${item.source}\`](${url} "Open XPscript source documentation")`);
   else md.appendMarkdown(`\n\nSource: \`${item.source}\``);
   return md;
