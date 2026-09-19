@@ -46,4 +46,4 @@ jobs:
           name: xpscript-vscode-${{ github.sha }}
           path: publish/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 3
