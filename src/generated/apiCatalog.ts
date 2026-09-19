@@ -12091,6 +12091,18 @@ export const apiCatalog: ApiItem[] = [
     "section": "Form API"
   },
   {
+    "name": "HasValidationSchema",
+    "qualifiedName": "UIForm.HasValidationSchema",
+    "owner": "UIForm",
+    "kind": "property",
+    "syntax": "form.HasValidationSchema",
+    "parameters": "none.",
+    "description": "True when an `XPJsonSchema` is attached to the form.",
+    "writable": false,
+    "source": "docs/api-reference.md",
+    "section": "UIForm"
+  },
+  {
     "name": "InitialFocus",
     "qualifiedName": "UIForm.InitialFocus",
     "owner": "UIForm",
@@ -12101,6 +12113,18 @@ export const apiCatalog: ApiItem[] = [
     "writable": true,
     "source": "docs/uiform-accessibility.md",
     "section": "Form API"
+  },
+  {
+    "name": "IsDataValid",
+    "qualifiedName": "UIForm.IsDataValid",
+    "owner": "UIForm",
+    "kind": "property",
+    "syntax": "form.IsDataValid",
+    "parameters": "none.",
+    "description": "Boolean convenience property for form JSON Schema validation; True when no schema is attached.",
+    "writable": false,
+    "source": "docs/api-reference.md",
+    "section": "UIForm"
   },
   {
     "name": "IsDirty",
@@ -12258,6 +12282,18 @@ export const apiCatalog: ApiItem[] = [
     "section": "Form API"
   },
   {
+    "name": "SetValidationSchema",
+    "qualifiedName": "UIForm.SetValidationSchema",
+    "owner": "UIForm",
+    "kind": "function",
+    "syntax": "form.SetValidationSchema(schema)",
+    "parameters": "XPJsonSchema` or `Nothing`.",
+    "description": "Sets or clears JSON Schema validation for the bound form data. Without a schema, form JSON data is valid by default.",
+    "writable": false,
+    "source": "docs/api-reference.md",
+    "section": "UIForm"
+  },
+  {
     "name": "ShowDialog",
     "qualifiedName": "UIForm.ShowDialog",
     "owner": "UIForm",
@@ -12277,6 +12313,18 @@ export const apiCatalog: ApiItem[] = [
     "syntax": "New UIForm(title)",
     "parameters": "form title.",
     "description": "Creates shared desktop/web/browser form.",
+    "writable": false,
+    "source": "docs/api-reference.md",
+    "section": "UIForm"
+  },
+  {
+    "name": "ValidateData",
+    "qualifiedName": "UIForm.ValidateData",
+    "owner": "UIForm",
+    "kind": "function",
+    "syntax": "form.ValidateData()",
+    "parameters": "none.",
+    "description": "Returns `XPJsonValidationResult` for the bound JSON data. Returns a valid result when no schema is attached.",
     "writable": false,
     "source": "docs/api-reference.md",
     "section": "UIForm"
