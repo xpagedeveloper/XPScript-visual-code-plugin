@@ -323,6 +323,18 @@ export const apiCatalog: ApiItem[] = [
     "section": "Application runtime information"
   },
   {
+    "name": "Write",
+    "qualifiedName": "Application.Audit.Write",
+    "owner": "Application.Audit",
+    "kind": "function",
+    "syntax": "Application.Audit.Write(eventName, message [, attributes])",
+    "parameters": "Stable event name, message and optional `XPJsonObject`.",
+    "description": "",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Application.Log and Application.Audit"
+  },
+  {
     "name": "Clear",
     "qualifiedName": "Application.Clear",
     "owner": "Application",
@@ -345,6 +357,126 @@ export const apiCatalog: ApiItem[] = [
     "writable": false,
     "source": "docs/application-reference.md",
     "section": "Application runtime information"
+  },
+  {
+    "name": "Algorithm",
+    "qualifiedName": "Application.Crypto.Algorithm",
+    "owner": "Application.Crypto",
+    "kind": "function",
+    "syntax": "Application.Crypto.Algorithm(value)",
+    "parameters": "encrypted envelope",
+    "description": "Returns the validated encryption profile identifier.",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Cryptography"
+  },
+  {
+    "name": "Decrypt",
+    "qualifiedName": "Application.Crypto.Decrypt",
+    "owner": "Application.Crypto",
+    "kind": "function",
+    "syntax": "Application.Crypto.Decrypt(value, password [, context])",
+    "parameters": "encrypted envelope, password and optional authenticated context",
+    "description": "Authenticates and decrypts a password-based envelope.",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Cryptography"
+  },
+  {
+    "name": "DecryptWithKey",
+    "qualifiedName": "Application.Crypto.DecryptWithKey",
+    "owner": "Application.Crypto",
+    "kind": "function",
+    "syntax": "Application.Crypto.DecryptWithKey(value, key [, context])",
+    "parameters": "encrypted envelope, Base64 256-bit key and optional context",
+    "description": "Authenticates and decrypts a key-based envelope.",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Cryptography"
+  },
+  {
+    "name": "Encrypt",
+    "qualifiedName": "Application.Crypto.Encrypt",
+    "owner": "Application.Crypto",
+    "kind": "function",
+    "syntax": "Application.Crypto.Encrypt(value, password [, algorithm [, context]])",
+    "parameters": "plaintext, password, optional profile and optional authenticated context",
+    "description": "Encrypts UTF-8 text with the current password profile and returns a versioned XPscript envelope.",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Cryptography"
+  },
+  {
+    "name": "EncryptWithKey",
+    "qualifiedName": "Application.Crypto.EncryptWithKey",
+    "owner": "Application.Crypto",
+    "kind": "function",
+    "syntax": "Application.Crypto.EncryptWithKey(value, key [, context])",
+    "parameters": "plaintext, Base64 256-bit key and optional context",
+    "description": "Encrypts UTF-8 text without applying a password KDF.",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Cryptography"
+  },
+  {
+    "name": "GenerateKey",
+    "qualifiedName": "Application.Crypto.GenerateKey",
+    "owner": "Application.Crypto",
+    "kind": "function",
+    "syntax": "Application.Crypto.GenerateKey()",
+    "parameters": "none",
+    "description": "Returns a random Base64-encoded 256-bit key.",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Cryptography"
+  },
+  {
+    "name": "IsEncrypted",
+    "qualifiedName": "Application.Crypto.IsEncrypted",
+    "owner": "Application.Crypto",
+    "kind": "function",
+    "syntax": "Application.Crypto.IsEncrypted(value)",
+    "parameters": "value",
+    "description": "Returns whether the value has an XPscript encrypted-envelope prefix.",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Cryptography"
+  },
+  {
+    "name": "NeedsUpgrade",
+    "qualifiedName": "Application.Crypto.NeedsUpgrade",
+    "owner": "Application.Crypto",
+    "kind": "function",
+    "syntax": "Application.Crypto.NeedsUpgrade(value)",
+    "parameters": "encrypted envelope",
+    "description": "Returns whether the supported envelope uses an older profile or weaker parameters.",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Cryptography"
+  },
+  {
+    "name": "ReEncrypt",
+    "qualifiedName": "Application.Crypto.ReEncrypt",
+    "owner": "Application.Crypto",
+    "kind": "function",
+    "syntax": "Application.Crypto.ReEncrypt(value, oldPassword, newPassword [, context])",
+    "parameters": "encrypted envelope, old password, new password and optional context",
+    "description": "Rewrites a password envelope with the current default profile.",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Cryptography"
+  },
+  {
+    "name": "Version",
+    "qualifiedName": "Application.Crypto.Version",
+    "owner": "Application.Crypto",
+    "kind": "function",
+    "syntax": "Application.Crypto.Version(value)",
+    "parameters": "encrypted envelope",
+    "description": "Returns the validated envelope format version.",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Cryptography"
   },
   {
     "name": "Executable",
@@ -537,6 +669,78 @@ export const apiCatalog: ApiItem[] = [
     "writable": false,
     "source": "docs/application-reference.md",
     "section": "Application UI metadata"
+  },
+  {
+    "name": "Critical",
+    "qualifiedName": "Application.Log.Critical",
+    "owner": "Application.Log",
+    "kind": "function",
+    "syntax": "Application.Log.Critical(eventName, message [, attributes])",
+    "parameters": "Stable event name, message and optional `XPJsonObject`.",
+    "description": "",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Application.Log and Application.Audit"
+  },
+  {
+    "name": "Debug",
+    "qualifiedName": "Application.Log.Debug",
+    "owner": "Application.Log",
+    "kind": "function",
+    "syntax": "Application.Log.Debug(eventName, message [, attributes])",
+    "parameters": "Stable event name, message and optional `XPJsonObject`.",
+    "description": "",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Application.Log and Application.Audit"
+  },
+  {
+    "name": "Error",
+    "qualifiedName": "Application.Log.Error",
+    "owner": "Application.Log",
+    "kind": "keyword",
+    "syntax": "Application.Log.Error(eventName, message [, attributes])",
+    "parameters": "Stable event name, message and optional `XPJsonObject`.",
+    "description": "",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Application.Log and Application.Audit"
+  },
+  {
+    "name": "Info",
+    "qualifiedName": "Application.Log.Info",
+    "owner": "Application.Log",
+    "kind": "function",
+    "syntax": "Application.Log.Info(eventName, message [, attributes])",
+    "parameters": "Stable event name, message and optional `XPJsonObject`.",
+    "description": "",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Application.Log and Application.Audit"
+  },
+  {
+    "name": "Trace",
+    "qualifiedName": "Application.Log.Trace",
+    "owner": "Application.Log",
+    "kind": "function",
+    "syntax": "Application.Log.Trace(eventName, message [, attributes])",
+    "parameters": "Stable event name, message and optional `XPJsonObject`.",
+    "description": "",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Application.Log and Application.Audit"
+  },
+  {
+    "name": "Warning",
+    "qualifiedName": "Application.Log.Warning",
+    "owner": "Application.Log",
+    "kind": "function",
+    "syntax": "Application.Log.Warning(eventName, message [, attributes])",
+    "parameters": "Stable event name, message and optional `XPJsonObject`.",
+    "description": "",
+    "writable": false,
+    "source": "docs/application-reference.md",
+    "section": "Application.Log and Application.Audit"
   },
   {
     "name": "Path",
@@ -816,6 +1020,160 @@ export const apiCatalog: ApiItem[] = [
     "section": "Application UI metadata"
   },
   {
+    "name": "ApplicationAuditRuntime",
+    "qualifiedName": "ApplicationAuditRuntime",
+    "kind": "function",
+    "syntax": "Application.Audit",
+    "parameters": "none",
+    "description": "",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Generated application logging runtime declarations"
+  },
+  {
+    "name": "Write",
+    "qualifiedName": "ApplicationAuditRuntime.Write",
+    "owner": "ApplicationAuditRuntime",
+    "kind": "function",
+    "syntax": "Application.Audit.Write(eventName, message [, attributes])",
+    "parameters": "Event, message, optional attributes.",
+    "description": "",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Generated application logging runtime declarations"
+  },
+  {
+    "name": "ApplicationCryptoRuntime",
+    "qualifiedName": "ApplicationCryptoRuntime",
+    "kind": "function",
+    "syntax": "Application.Crypto",
+    "parameters": "none",
+    "description": "Internal runtime implementation behind the public `Application.Crypto` facade for versioned authenticated string encryption.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Application.Crypto"
+  },
+  {
+    "name": "Algorithm",
+    "qualifiedName": "ApplicationCryptoRuntime.Algorithm",
+    "owner": "ApplicationCryptoRuntime",
+    "kind": "function",
+    "syntax": "Application.Crypto.Algorithm(value)",
+    "parameters": "value`: encrypted envelope.",
+    "description": "Validates the envelope and returns its algorithm profile identifier.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Application.Crypto"
+  },
+  {
+    "name": "Decrypt",
+    "qualifiedName": "ApplicationCryptoRuntime.Decrypt",
+    "owner": "ApplicationCryptoRuntime",
+    "kind": "function",
+    "syntax": "Application.Crypto.Decrypt(value, password [, context])",
+    "parameters": "value`: encrypted envelope; `password`: password; optional authenticated `context`.",
+    "description": "Authenticates and decrypts a password-based envelope using the algorithm and parameters recorded in it.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Application.Crypto"
+  },
+  {
+    "name": "DecryptWithKey",
+    "qualifiedName": "ApplicationCryptoRuntime.DecryptWithKey",
+    "owner": "ApplicationCryptoRuntime",
+    "kind": "function",
+    "syntax": "Application.Crypto.DecryptWithKey(value, key [, context])",
+    "parameters": "value`: encrypted envelope; `key`: Base64-encoded 256-bit key; optional authenticated `context`.",
+    "description": "Authenticates and decrypts a key-based envelope.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Application.Crypto"
+  },
+  {
+    "name": "Encrypt",
+    "qualifiedName": "ApplicationCryptoRuntime.Encrypt",
+    "owner": "ApplicationCryptoRuntime",
+    "kind": "function",
+    "syntax": "Application.Crypto.Encrypt(value, password [, algorithm [, context]])",
+    "parameters": "value`: plaintext; `password`: non-empty password; optional `algorithm` and authenticated `context`.",
+    "description": "Encrypts UTF-8 text with the current password-based authenticated-encryption profile and returns a self-describing envelope.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Application.Crypto"
+  },
+  {
+    "name": "EncryptWithKey",
+    "qualifiedName": "ApplicationCryptoRuntime.EncryptWithKey",
+    "owner": "ApplicationCryptoRuntime",
+    "kind": "function",
+    "syntax": "Application.Crypto.EncryptWithKey(value, key [, context])",
+    "parameters": "value`: plaintext; `key`: Base64-encoded 256-bit key; optional authenticated `context`.",
+    "description": "Encrypts UTF-8 text with a supplied AES-256 key and returns a self-describing authenticated envelope.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Application.Crypto"
+  },
+  {
+    "name": "GenerateKey",
+    "qualifiedName": "ApplicationCryptoRuntime.GenerateKey",
+    "owner": "ApplicationCryptoRuntime",
+    "kind": "function",
+    "syntax": "Application.Crypto.GenerateKey()",
+    "parameters": "none",
+    "description": "Generates a cryptographically random 256-bit key encoded as standard Base64.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Application.Crypto"
+  },
+  {
+    "name": "IsEncrypted",
+    "qualifiedName": "ApplicationCryptoRuntime.IsEncrypted",
+    "owner": "ApplicationCryptoRuntime",
+    "kind": "function",
+    "syntax": "Application.Crypto.IsEncrypted(value)",
+    "parameters": "value`: string to inspect.",
+    "description": "Returns whether the value starts with an XPscript encrypted-envelope prefix.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Application.Crypto"
+  },
+  {
+    "name": "NeedsUpgrade",
+    "qualifiedName": "ApplicationCryptoRuntime.NeedsUpgrade",
+    "owner": "ApplicationCryptoRuntime",
+    "kind": "function",
+    "syntax": "Application.Crypto.NeedsUpgrade(value)",
+    "parameters": "value`: encrypted envelope.",
+    "description": "Returns whether the envelope uses an older supported format, cipher or password work factor.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Application.Crypto"
+  },
+  {
+    "name": "ReEncrypt",
+    "qualifiedName": "ApplicationCryptoRuntime.ReEncrypt",
+    "owner": "ApplicationCryptoRuntime",
+    "kind": "function",
+    "syntax": "Application.Crypto.ReEncrypt(value, oldPassword, newPassword [, context])",
+    "parameters": "value`: password-based envelope; old and new passwords; optional authenticated `context`.",
+    "description": "Decrypts a password-based value and creates a new envelope with the current default profile.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Application.Crypto"
+  },
+  {
+    "name": "Version",
+    "qualifiedName": "ApplicationCryptoRuntime.Version",
+    "owner": "ApplicationCryptoRuntime",
+    "kind": "function",
+    "syntax": "Application.Crypto.Version(value)",
+    "parameters": "value`: encrypted envelope.",
+    "description": "Validates the envelope and returns its numeric format version.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Application.Crypto"
+  },
+  {
     "name": "ApplicationExecutable",
     "qualifiedName": "ApplicationExecutable",
     "kind": "class",
@@ -908,6 +1266,89 @@ export const apiCatalog: ApiItem[] = [
     "description": "Generated executable and assembly version string.",
     "source": "docs/application-reference.md",
     "section": "Executable metadata"
+  },
+  {
+    "name": "ApplicationLogRuntime",
+    "qualifiedName": "ApplicationLogRuntime",
+    "kind": "function",
+    "syntax": "Application.Log",
+    "parameters": "none",
+    "description": "",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Generated application logging runtime declarations"
+  },
+  {
+    "name": "Critical",
+    "qualifiedName": "ApplicationLogRuntime.Critical",
+    "owner": "ApplicationLogRuntime",
+    "kind": "function",
+    "syntax": "Application.Log.Critical(eventName, message [, attributes])",
+    "parameters": "Event, message, optional attributes.",
+    "description": "",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Generated application logging runtime declarations"
+  },
+  {
+    "name": "Debug",
+    "qualifiedName": "ApplicationLogRuntime.Debug",
+    "owner": "ApplicationLogRuntime",
+    "kind": "function",
+    "syntax": "Application.Log.Debug(eventName, message [, attributes])",
+    "parameters": "Event, message, optional attributes.",
+    "description": "",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Generated application logging runtime declarations"
+  },
+  {
+    "name": "Error",
+    "qualifiedName": "ApplicationLogRuntime.Error",
+    "owner": "ApplicationLogRuntime",
+    "kind": "keyword",
+    "syntax": "Application.Log.Error(eventName, message [, attributes])",
+    "parameters": "Event, message, optional attributes.",
+    "description": "",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Generated application logging runtime declarations"
+  },
+  {
+    "name": "Info",
+    "qualifiedName": "ApplicationLogRuntime.Info",
+    "owner": "ApplicationLogRuntime",
+    "kind": "function",
+    "syntax": "Application.Log.Info(eventName, message [, attributes])",
+    "parameters": "Event, message, optional attributes.",
+    "description": "",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Generated application logging runtime declarations"
+  },
+  {
+    "name": "Trace",
+    "qualifiedName": "ApplicationLogRuntime.Trace",
+    "owner": "ApplicationLogRuntime",
+    "kind": "function",
+    "syntax": "Application.Log.Trace(eventName, message [, attributes])",
+    "parameters": "Event, message, optional attributes.",
+    "description": "",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Generated application logging runtime declarations"
+  },
+  {
+    "name": "Warning",
+    "qualifiedName": "ApplicationLogRuntime.Warning",
+    "owner": "ApplicationLogRuntime",
+    "kind": "function",
+    "syntax": "Application.Log.Warning(eventName, message [, attributes])",
+    "parameters": "Event, message, optional attributes.",
+    "description": "",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Generated application logging runtime declarations"
   },
   {
     "name": "architecture library selectors",
@@ -1379,6 +1820,54 @@ export const apiCatalog: ApiItem[] = [
     "writable": false,
     "source": "docs/language-reference.md",
     "section": "Operators"
+  },
+  {
+    "name": "Describe",
+    "qualifiedName": "CompilerCommandLine.Describe",
+    "owner": "CompilerCommandLine",
+    "kind": "function",
+    "syntax": "xpscript describe symbol [--result-format FORMAT] (FORMAT: text or json)",
+    "parameters": "exact public XPScript symbol name and optional result format.",
+    "description": "Returns compiler-owned metadata for an exact public symbol, including signature, kind, documentation ID and target restrictions when present.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Compiler command-line machine interface"
+  },
+  {
+    "name": "Explain",
+    "qualifiedName": "CompilerCommandLine.Explain",
+    "owner": "CompilerCommandLine",
+    "kind": "function",
+    "syntax": "xpscript explain diagnosticCode [--result-format FORMAT] (FORMAT: text or json)",
+    "parameters": "stable XPS diagnostic code and optional result format.",
+    "description": "Returns the compiler-owned definition and explanation for a stable XPScript diagnostic code.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Compiler command-line machine interface"
+  },
+  {
+    "name": "Symbols",
+    "qualifiedName": "CompilerCommandLine.Symbols",
+    "owner": "CompilerCommandLine",
+    "kind": "function",
+    "syntax": "xpscript symbols [--search text] [--result-format FORMAT] (FORMAT: text or json)",
+    "parameters": "optional symbol search text and result format.",
+    "description": "Searches the deterministic public XPScript compiler symbol catalog for machine and developer tooling.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Compiler command-line machine interface"
+  },
+  {
+    "name": "ValidateAsync",
+    "qualifiedName": "CompilerCommandLine.ValidateAsync",
+    "owner": "CompilerCommandLine",
+    "kind": "function",
+    "syntax": "xpscript validate source.xps [--rid runtime] [--result-format FORMAT] (FORMAT: text, json, or xml)",
+    "parameters": "source path, optional runtime identifier and result format; `--stdin --filename name.xps` accepts virtual source input.",
+    "description": "Validates XPScript through the normal compiler pipeline without producing or executing the final application.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Compiler command-line machine interface"
   },
   {
     "name": "concatenation `&",
@@ -2541,6 +3030,17 @@ export const apiCatalog: ApiItem[] = [
     "section": "REST routes and binding"
   },
   {
+    "name": "FromCookie",
+    "qualifiedName": "FromCookie",
+    "kind": "function",
+    "syntax": "[FromCookie] value As String",
+    "parameters": "parameter; optional explicit cookie name form.",
+    "description": "Binds request cookie.",
+    "writable": false,
+    "source": "docs/api-reference.md",
+    "section": "REST routes and binding"
+  },
+  {
     "name": "FromHeader",
     "qualifiedName": "FromHeader",
     "kind": "function",
@@ -3190,6 +3690,18 @@ export const apiCatalog: ApiItem[] = [
     "writable": false,
     "source": "docs/commands.md",
     "section": "Arrays and lists"
+  },
+  {
+    "name": "ToObject",
+    "qualifiedName": "JsonArray.ToObject",
+    "owner": "JsonArray",
+    "kind": "function",
+    "syntax": "arr.ToObject(contract)",
+    "parameters": "contract`: XPscript object or value describing the target conversion type.",
+    "description": "Converts the JSON array using the supplied XPscript conversion contract.",
+    "writable": false,
+    "source": "docs/intellisense-api-reference.md",
+    "section": "Native JSON conversion"
   },
   {
     "name": "JsonDecode",
@@ -12091,6 +12603,18 @@ export const apiCatalog: ApiItem[] = [
     "section": "Form API"
   },
   {
+    "name": "HasValidationSchema",
+    "qualifiedName": "UIForm.HasValidationSchema",
+    "owner": "UIForm",
+    "kind": "property",
+    "syntax": "form.HasValidationSchema",
+    "parameters": "none.",
+    "description": "True when an `XPJsonSchema` is attached to the form.",
+    "writable": false,
+    "source": "docs/api-reference.md",
+    "section": "UIForm"
+  },
+  {
     "name": "InitialFocus",
     "qualifiedName": "UIForm.InitialFocus",
     "owner": "UIForm",
@@ -12101,6 +12625,18 @@ export const apiCatalog: ApiItem[] = [
     "writable": true,
     "source": "docs/uiform-accessibility.md",
     "section": "Form API"
+  },
+  {
+    "name": "IsDataValid",
+    "qualifiedName": "UIForm.IsDataValid",
+    "owner": "UIForm",
+    "kind": "property",
+    "syntax": "form.IsDataValid",
+    "parameters": "none.",
+    "description": "Boolean convenience property for form JSON Schema validation; True when no schema is attached.",
+    "writable": false,
+    "source": "docs/api-reference.md",
+    "section": "UIForm"
   },
   {
     "name": "IsDirty",
@@ -12258,6 +12794,18 @@ export const apiCatalog: ApiItem[] = [
     "section": "Form API"
   },
   {
+    "name": "SetValidationSchema",
+    "qualifiedName": "UIForm.SetValidationSchema",
+    "owner": "UIForm",
+    "kind": "function",
+    "syntax": "form.SetValidationSchema(schema)",
+    "parameters": "XPJsonSchema` or `Nothing`.",
+    "description": "Sets or clears JSON Schema validation for the bound form data. Without a schema, form JSON data is valid by default.",
+    "writable": false,
+    "source": "docs/api-reference.md",
+    "section": "UIForm"
+  },
+  {
     "name": "ShowDialog",
     "qualifiedName": "UIForm.ShowDialog",
     "owner": "UIForm",
@@ -12277,6 +12825,18 @@ export const apiCatalog: ApiItem[] = [
     "syntax": "New UIForm(title)",
     "parameters": "form title.",
     "description": "Creates shared desktop/web/browser form.",
+    "writable": false,
+    "source": "docs/api-reference.md",
+    "section": "UIForm"
+  },
+  {
+    "name": "ValidateData",
+    "qualifiedName": "UIForm.ValidateData",
+    "owner": "UIForm",
+    "kind": "function",
+    "syntax": "form.ValidateData()",
+    "parameters": "none.",
+    "description": "Returns `XPJsonValidationResult` for the bound JSON data. Returns a valid result when no schema is attached.",
     "writable": false,
     "source": "docs/api-reference.md",
     "section": "UIForm"
